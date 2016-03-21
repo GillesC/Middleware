@@ -16,6 +16,7 @@ import java.security.SignatureException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPublicKey;
 
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
@@ -23,7 +24,7 @@ import javax.smartcardio.ResponseAPDU;
 import connection.Connection;
 import connection.IConnection;
 import connection.SimulatedConnection;
-import org.bouncycastle.jce.interfaces.ECPublicKey;
+import sun.security.ec.ECPublicKeyImpl;
 
 
 public class Client {
@@ -238,11 +239,13 @@ public class Client {
             }
             ECPublicKey pubCEKey = (ECPublicKey) certificateOtherParty.getPublicKey();
             //ECPublicKey pubCEKey = (ECPublicKey) publicKeyOtherParty;
-            byte[] publicKeyOtherPartyBytes = pubCEKey.getQ().getEncoded();
-            System.out.println("Public key other party (length): "+publicKeyOtherPartyBytes.length);
-            printBytes(publicKeyOtherPartyBytes);
+			PublicKey publicKeyOtherParty = certificateOtherParty.getPublicKey();
+			ECPublicKeyImpl ecPublicKeyOtherParty = (ECPublicKeyImpl)publicKeyOtherParty;
+			byte[] ecPublicKeyOtherPartyBytes = ecPublicKeyOtherParty.getEncodedPublicValue();
+            System.out.println("Public key other party (length): "+ecPublicKeyOtherPartyBytes.length);
+            printBytes(ecPublicKeyOtherPartyBytes);
             
-            generateSessionKey(c, publicKeyOtherPartyBytes);
+            generateSessionKey(c, ecPublicKeyOtherPartyBytes);
 
             System.out.println("\nEnding client");
 	        } catch (UnknownHostException e) {
