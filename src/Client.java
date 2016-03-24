@@ -28,6 +28,14 @@ public class Client {
     private static final byte GENERATE_SESSION_KEY = 0x36;
 
     private static final byte ENCRYPT_BYTES_WITH_SESSION_KEY = 0x37;
+    private static final byte DECRYPT_BYTES_WITH_SESSION_KEY = 0x39;
+
+    private static final byte REGISTER_SHOP_PSEUDONYM = 0x38;
+    private static final byte REGISTER_SHOP_CERTIFICATE = 0x39;
+    private static final byte REGISTER_SHOP_NAME = 0x40;
+    private static final byte REGISTER_SHOP_COMPLETE = 0x41;
+
+
 
     private static final boolean isSimulation = false;
 
@@ -71,6 +79,8 @@ public class Client {
             SecureConnection secureConnection = setupSecureConnection("LCP");
 
             byte[] encryptedShopName = encryptOnSC(shopName);
+            //byte[] decryptedShopName = decryptOnSC(encryptedShopName);
+
             secureConnection.send("RequestRegistration");
             secureConnection.send(encryptedShopName);
             //pseudonym for that particular shop
@@ -78,29 +88,81 @@ public class Client {
             // Certificate signed by CA with pseudonym in for shop <shopname>
             byte[] encryptedCertificate = secureConnection.receiveBytes();
 
-            //saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, Util.shortToByte(0), shopName);
+            saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, shopName);
         } catch (CertificateException certE) {
             System.err.println("CertificateException: " + certE.getMessage());
         }
 
     }
-/*
-    private static void saveShopRegistrationToSC(byte[] encryptedPseudonym, byte[] encryptedCertificate, byte LP, String shopName) throws Exception {
-        System.out.println("Started saving registration for shop: " + shopName + " on SC");
+
+/*    private static byte[] decryptOnSC(byte[] encryptedData) throws Exception {
+        System.out.println("Started decryption on SC");
         CommandAPDU a;
         ResponseAPDU r;
 
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP, 0x00, 0x00, shopName.getBytes(StandardCharsets.UTF_8), 0xff);
+        a = new CommandAPDU(IDENTITY_CARD_CLA, DECRYPT_BYTES_WITH_SESSION_KEY, 0x00, 0x00, encryptedData, 0xff);
         r = c.transmit(a);
         if (r.getSW() != 0x9000)
-            throw new Exception("Encrypt bytes with sessionkey failed " + r);
+            throw new Exception("Decrypt bytes with sessionkey failed " + r);
 
-        System.out.println("\t\t Encrypted data:");
-        printBytes(r.getData());
+        System.out.println("\t\t Decrypted data:");
+        Util.printBytes(r.getData());
 
+        System.out.println("Decrypted data in String format: "+new String(r.getData(), "UTF-8"));
+
+        System.out.println("Ended decryption on SC");
+        return r.getData();
+    }*/
+
+    private static void saveShopRegistrationToSC(byte[] encryptedPseudonym, byte[] encryptedCertificate, String shopName) throws Exception {
+        System.out.println("Started saving registration for shop: " + shopName + " on SC");
+        savePseudonymOnSC(encryptedPseudonym);
+        saveCertificateOnSC(encryptedCertificate);
+        saveShopNameOnSC(shopName);
+        registryComplete();
         System.out.println("Ended registration of shop on SC");
     }
-    */
+
+    private static void registryComplete() throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        // SC will make a new shop entry with given parameters
+        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_COMPLETE, 0x00, 0x00);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception("REGISTER_SHOP_NAME failed " + r);
+    }
+
+    private static void saveShopNameOnSC(String shopName) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_NAME, 0x00, 0x00, shopName.getBytes(StandardCharsets.UTF_8));
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception("REGISTER_SHOP_NAME failed " + r);
+    }
+
+    private static void saveCertificateOnSC(byte[] encryptedCertificate) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_CERTIFICATE, 0x00, 0x00, encryptedCertificate);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception("REGISTER_SHOP_CERTIFICATE failed " + r);
+    }
+
+    private static void savePseudonymOnSC(byte[] encryptedPseudonym) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_PSEUDONYM, 0x00, 0x00, encryptedPseudonym);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception("REGISTER_SHOP_PSEUDONYM failed " + r);
+    }
 
 
     private static byte[] encryptOnSC(String shopName) throws Exception {
@@ -108,7 +170,9 @@ public class Client {
         CommandAPDU a;
         ResponseAPDU r;
 
-        a = new CommandAPDU(IDENTITY_CARD_CLA, ENCRYPT_BYTES_WITH_SESSION_KEY, 0x00, 0x00, shopName.getBytes(StandardCharsets.UTF_8), 0xff);
+        byte[] shopInBytes = shopName.getBytes(StandardCharsets.UTF_8);
+        System.out.println("\t\t Shop in bytes:");Util.printBytes(shopInBytes);
+        a = new CommandAPDU(IDENTITY_CARD_CLA, ENCRYPT_BYTES_WITH_SESSION_KEY, 0x00, 0x00,shopInBytes , 0xff);
         r = c.transmit(a);
         if (r.getSW() != 0x9000)
             throw new Exception("Encrypt bytes with sessionkey failed " + r);
@@ -163,16 +227,6 @@ public class Client {
     private static byte[] getECCertificateFromCard() throws Exception {
         CommandAPDU a;
         ResponseAPDU r;
-
-//		/* Ask for certificate length */
-//        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_EC_CERTIFICATE_SIZE, 0x00, 0x00, 0xff);
-//		r = c.transmit(a);
-//		if (r.getSW() != 0x9000)
-//			throw new Exception("Get certificate size failed "+r);
-//		if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
-//			throw new Exception("PIN verification is required");
-//		
-//		short certificateLength = readShort(r.getData(),0);
 
         a = new CommandAPDU(IDENTITY_CARD_CLA, CLEAR_OFFSET_INS, 0xf0, 0x00, 0xff);
         r = c.transmit(a);

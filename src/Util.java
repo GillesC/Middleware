@@ -1,5 +1,6 @@
 /**
  * Created by Gilles Callebaut on 24/03/2016.
+ *
  */
 public class Util {
 
@@ -13,9 +14,7 @@ public class Util {
             sb1 += "0x" + String.format("%02x", b) + " ";
         }
         System.out.println(sb1);
-
     }
-
 
     public static short readShort(byte[] data, int offset) {
         return (short) (((data[offset] << 8)) | ((data[offset + 1] & 0xff)));

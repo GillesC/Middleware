@@ -90,6 +90,8 @@ public class SecureConnection {
         out.writeObject(bytesToSend);
     }
 
+
+    /* receive methods */
     public byte[] receiveBytes() throws IOException, ClassNotFoundException {
         return (byte[])in.readObject();
     }
