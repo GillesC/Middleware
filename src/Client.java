@@ -4,18 +4,13 @@ import connection.Connection;
 import connection.IConnection;
 import connection.SecureConnection;
 import connection.SimulatedConnection;
-import sun.security.ec.ECPublicKeyImpl;
-import sun.security.x509.X500Name;
 
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import java.io.*;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.util.Date;
 
 
 public class Client {
@@ -27,23 +22,14 @@ public class Client {
 
     private static final byte GET_SERIAL_INS = 0x24;
     private static final byte GET_NAME_INS = 0x26;
-    //private static final byte CHALLENGE_INS = 0x28;
-    //private static final byte GET_CERTIFICATE_INS = 0x30;
-    //private static final byte GET_CERTIFICATE_SIZE_INS = 0x32;
 
     private static final byte GET_EC_CERTIFICATE = 0x34;
     private static final byte CLEAR_OFFSET_INS = 0x35;
     private static final byte GENERATE_SESSION_KEY = 0x36;
 
-    //private static final byte SET = 0x37;
-    //private static final byte PULL = 0x38;
-
     private static final byte ENCRYPT_BYTES_WITH_SESSION_KEY = 0x37;
 
     private static final boolean isSimulation = false;
-
-    private static PrivateKey privateKeyCA;
-    private static PublicKey publicKeyCA;
 
     private static IConnection c;
 
@@ -56,8 +42,7 @@ public class Client {
         } else {
             // Real Card:
             c = new Connection();
-            ((Connection) c).setTerminal(0); // depending on which cardreader
-            // you use
+            ((Connection) c).setTerminal(0); // depending on which cardreader you use
         }
 
         c.connect();
@@ -73,28 +58,7 @@ public class Client {
                 simulationPreProcessing(c);
             }
 
-            /* test persistance storage */
-            /*
-            CommandAPDU a;
-            ResponseAPDU r;
-
-            a = new CommandAPDU(IDENTITY_CARD_CLA, SET, 0x00, 0x00, new byte[] {0x66}, 0xff);
-            r = c.transmit(a);
-            if (r.getSW() != 0x9000)
-                throw new Exception("test failed "+r);
-
-
-           a = new CommandAPDU(IDENTITY_CARD_CLA, PULL, 0x00, 0x00, 0xff);
-            r = c.transmit(a);
-            if (r.getSW() != 0x9000)
-                throw new Exception("Pull test data "+r);
-                printBytes(r.getData());
-                */
-
-            loadCACertificate();
-
             requestRegistration("Coolblue");
-
 
         } finally {
             c.close(); // close the connection with the card
@@ -107,14 +71,14 @@ public class Client {
             SecureConnection secureConnection = setupSecureConnection("LCP");
 
             byte[] encryptedShopName = encryptOnSC(shopName);
-            //secureConnection.send("RequestRegistration");
-            //secureConnection.send(encryptedShopName);
+            secureConnection.send("RequestRegistration");
+            secureConnection.send(encryptedShopName);
             //pseudonym for that particular shop
-            //byte[] encryptedPseudonym = secureConnection.receiveBytes();
+            byte[] encryptedPseudonym = secureConnection.receiveBytes();
             // Certificate signed by CA with pseudonym in for shop <shopname>
-            //byte[] encryptedCertificate = secureConnection.receiveBytes();
+            byte[] encryptedCertificate = secureConnection.receiveBytes();
 
-            //saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, shortToByte(0), shopName);
+            //saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, Util.shortToByte(0), shopName);
         } catch (CertificateException certE) {
             System.err.println("CertificateException: " + certE.getMessage());
         }
@@ -150,25 +114,14 @@ public class Client {
             throw new Exception("Encrypt bytes with sessionkey failed " + r);
 
         System.out.println("\t\t Encrypted data:");
-        printBytes(r.getData());
+        Util.printBytes(r.getData());
 
         System.out.println("Ended encryption on SC");
         return r.getData();
     }
 
 
-    private static void loadCACertificate() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
-        KeyStore keyStore = KeyStore.getInstance("JKS");
-        String fileNameStore1 = new File("certificates\\LCP.jks").getAbsolutePath();
-        char[] password = "LCP".toCharArray();
-        FileInputStream fis = new FileInputStream(fileNameStore1);
-        keyStore.load(fis, password);
-        fis.close();
 
-        privateKeyCA = (PrivateKey) keyStore.getKey("LoyaltyCardProvider", "LCP".toCharArray());
-        java.security.cert.Certificate certCA = keyStore.getCertificate("LoyaltyCardProvider");
-        publicKeyCA = certCA.getPublicKey();
-    }
 
 
     private static SecureConnection setupSecureConnection(String with) throws Exception {
@@ -184,47 +137,14 @@ public class Client {
         secureConnection.send(cardECCertificate);
         System.out.println("Done sending");
 
-        byte[] ecPublicKeyOtherPartyBytes = getECPublicKeyFromCertificate(LCPECCertificate, SecureConnection.LCP_NAME);
+        byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(LCPECCertificate, SecureConnection.LCP_NAME);
         generateSessionKey(ecPublicKeyOtherPartyBytes);
 
         System.out.println("\nSecure Connection has been setup");
         return secureConnection;
     }
 
-    private static byte[] getECPublicKeyFromCertificate(byte[] lcpecCertificate, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        	/* Create cert + get public key */
-        X509Certificate certificateOtherParty = null;
-        try {
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            InputStream byteInputStream = new ByteArrayInputStream(lcpecCertificate);
-            certificateOtherParty = (X509Certificate) certFactory.generateCertificate(byteInputStream);
-        } catch (CertificateException e) {
-            e.printStackTrace();
-        }
 
-        checkCertificate(certificateOtherParty, subjectName);
-
-        PublicKey publicKeyOtherParty = certificateOtherParty.getPublicKey();
-        ECPublicKeyImpl ecPublicKeyOtherParty = (ECPublicKeyImpl) publicKeyOtherParty;
-        byte[] ecPublicKeyOtherPartyBytes = ecPublicKeyOtherParty.getEncodedPublicValue();
-        System.out.println("Public key other party (length): " + ecPublicKeyOtherPartyBytes.length);
-        printBytes(ecPublicKeyOtherPartyBytes);
-        return ecPublicKeyOtherPartyBytes;
-    }
-
-    private static void checkCertificate(X509Certificate cert, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        if (cert != null) {
-            cert.checkValidity(new Date());
-            cert.verify(publicKeyCA);
-            if (!SecureConnection.checkName(cert, subjectName)) {
-                System.err.println("SubjectName doesn't match contacted name...");
-            }
-        } else {
-            System.err.println("ECCertificate is null...");
-        }
-
-        //TODO check OCSP
-    }
 
 
     private static void generateSessionKey(byte[] publicKeyOtherPartyBytes) throws Exception {
@@ -237,7 +157,7 @@ public class Client {
             throw new Exception("Generate SessionKey failed " + r);
 
         System.out.println("ONLY IN DEBUG: Received sessionkey: ");
-        printBytes(r.getData());
+        Util.printBytes(r.getData());
     }
 
     private static byte[] getECCertificateFromCard() throws Exception {
@@ -280,19 +200,6 @@ public class Client {
         return outputStream.toByteArray();
     }
 
-    private static byte shortToByte(int i) {
-        return (byte) (((short) i >> 8) & 0xff);
-    }
-
-    private static void printBytes(byte[] data) {
-        String sb1 = "";
-        for (byte b : data) {
-            sb1 += "0x" + String.format("%02x", b) + " ";
-        }
-        System.out.println(sb1);
-
-    }
-
     public static boolean verify(byte[] data, PublicKey publicKey, byte[] sign) {
         Signature signer;
         try {
@@ -304,10 +211,6 @@ public class Client {
             e.printStackTrace();
         }
         return false;
-    }
-
-    public static short readShort(byte[] data, int offset) {
-        return (short) (((data[offset] << 8)) | ((data[offset + 1] & 0xff)));
     }
 
     private static void sendPin(IConnection c) throws Exception {
@@ -332,13 +235,13 @@ public class Client {
         if (r.getSW() != 0x9000)
             throw new Exception("Serial Number request failed " + r.getSW());
         System.out.print("Serial ID : ");
-        printBytes(r.getData());
+        Util.printBytes(r.getData());
 
         // 4. getName
         a = new CommandAPDU(IDENTITY_CARD_CLA, GET_NAME_INS, 0x00, 0x00, 0xff);
         r = c.transmit(a);
         System.out.print("Name : ");
-        printBytes(r.getData());
+        Util.printBytes(r.getData());
         if (r.getSW() != 0x9000)
             throw new Exception("Name request failed");
         if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
