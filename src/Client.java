@@ -8,6 +8,8 @@ import connection.SimulatedConnection;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
@@ -44,6 +46,9 @@ public class Client {
 
     public static void main(String[] args) throws Exception {
 
+
+        startServer();
+
         if (isSimulation) {
             // Simulation:
             c = new SimulatedConnection();
@@ -70,6 +75,21 @@ public class Client {
 
         } finally {
             c.close(); // close the connection with the card
+        }
+    }
+
+    private static void startServer() {
+        int portNumber = 13000;
+        IOThread ioThread = null;
+        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
+            System.out.println("Server listening on port "+portNumber);
+            while (true) {
+                ioThread = new IOThread(serverSocket.accept());
+                ioThread.start();
+            }
+        } catch (IOException e) {
+            System.err.println("Could not listen on port " + portNumber);
+            System.exit(-1);
         }
     }
 
