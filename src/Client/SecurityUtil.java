@@ -1,3 +1,5 @@
+package Client;
+
 import connection.SecureConnection;
 import sun.security.ec.ECPublicKeyImpl;
 
@@ -6,33 +8,41 @@ import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
 
 /**
  * Created by Gilles Callebaut on 24/03/2016.
+ *
  */
 public class SecurityUtil {
+
+
+
     private static PrivateKey privateKeyCA;
     private static PublicKey publicKeyCA;
 
     private static boolean loadedCA= false;
 
 
-    private static void loadCACertificate() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+    private static void loadCACertificate(String alias, String pwd, String storeName) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+        loadedCA = true;
         KeyStore keyStore = KeyStore.getInstance("JKS");
-        String fileNameStore1 = new File("certificates\\LCP.jks").getAbsolutePath();
-        char[] password = "LCP".toCharArray();
+        String fileNameStore1 = new File("certificates\\"+storeName+".jks").getAbsolutePath();
+        char[] password = pwd.toCharArray();
         FileInputStream fis = new FileInputStream(fileNameStore1);
         keyStore.load(fis, password);
         fis.close();
 
-        privateKeyCA = (PrivateKey) keyStore.getKey("LoyaltyCardProvider", "LCP".toCharArray());
-        java.security.cert.Certificate certCA = keyStore.getCertificate("LoyaltyCardProvider");
+        privateKeyCA = (PrivateKey) keyStore.getKey(alias, pwd.toCharArray());
+        java.security.cert.Certificate certCA = keyStore.getCertificate(alias);
         publicKeyCA = certCA.getPublicKey();
     }
 
     public static byte[] getECPublicKeyFromCertificate(byte[] lcpecCertificate, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException, UnrecoverableKeyException, KeyStoreException, IOException {
-        if(!loadedCA) loadCACertificate();
+        if(!loadedCA) loadCACertificate("LoyaltyCardProvider","LCP","LCP");
 
         	/* Create cert + get public key */
         X509Certificate certificateOtherParty = null;
@@ -66,5 +76,14 @@ public class SecurityUtil {
         }
 
         //TODO check OCSP
+    }
+
+    public static PublicKey getPublicRSAKeyFromBytes(byte[] pub) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pub));
+    }
+
+
+    public static PrivateKey getPrivateRSAKeyFromBytes(byte[] priv) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(priv));
     }
 }

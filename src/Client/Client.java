@@ -1,9 +1,6 @@
+package Client;
 
-
-import connection.Connection;
-import connection.IConnection;
-import connection.SecureConnection;
-import connection.SimulatedConnection;
+import connection.*;
 
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
@@ -17,7 +14,7 @@ import java.security.cert.CertificateException;
 
 public class Client {
 
-    private final static byte IDENTITY_CARD_CLA = (byte) 0x80;
+    public final static byte IDENTITY_CARD_CLA = (byte) 0x80;
     private static final byte VALIDATE_PIN_INS = 0x22;
     private final static short SW_VERIFICATION_FAILED = 0x6300;
     private final static short SW_PIN_VERIFICATION_REQUIRED = 0x6301;
@@ -36,6 +33,10 @@ public class Client {
     private static final byte REGISTER_SHOP_CERTIFICATE = 0x39;
     private static final byte REGISTER_SHOP_NAME = 0x40;
     private static final byte REGISTER_SHOP_COMPLETE = 0x41;
+
+    public static final byte CLOSE_SECURE_CONNECTION = 0x42;
+
+    private static final byte TEST = 0x43;
 
 
 
@@ -71,6 +72,8 @@ public class Client {
                 simulationPreProcessing(c);
             }
 
+            SmartCardConnection.setup(c);
+            //TODO use secureCardconnection!!
             requestRegistration("Coolblue");
 
         } finally {
@@ -78,20 +81,11 @@ public class Client {
         }
     }
 
-    private static void startServer() {
-        int portNumber = 13000;
-        IOThread ioThread = null;
-        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
-            System.out.println("Server listening on port "+portNumber);
-            while (true) {
-                ioThread = new IOThread(serverSocket.accept());
-                ioThread.start();
-            }
-        } catch (IOException e) {
-            System.err.println("Could not listen on port " + portNumber);
-            System.exit(-1);
-        }
-    }
+    /*
+    private static void test() throws Exception {
+        byte[] data = SmartCardConnection.sendAndReceive(TEST, (byte) 0x00, (byte) 0x00, new byte[]{0x01, 0x02, 0x03}, 0xff);
+        Util.printBytes(data);
+    }*/
 
     private static void requestRegistration(String shopName) throws Exception {
         sendPin(c);
@@ -104,11 +98,14 @@ public class Client {
             secureConnection.send("RequestRegistration");
             secureConnection.send(encryptedShopName);
             //pseudonym for that particular shop
-            byte[] encryptedPseudonym = secureConnection.receiveBytes();
+           // byte[] encryptedPseudonym = secureConnection.receiveBytes();
             // Certificate signed by CA with pseudonym in for shop <shopname>
-            byte[] encryptedCertificate = secureConnection.receiveBytes();
+           // byte[] encryptedCertificate = secureConnection.receiveBytes();
 
-            saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, shopName);
+           // saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, shopName);
+
+            // close connection == sessionkey = null on SC
+            secureConnection.close(c);
         } catch (CertificateException certE) {
             System.err.println("CertificateException: " + certE.getMessage());
         }
@@ -126,7 +123,7 @@ public class Client {
             throw new Exception("Decrypt bytes with sessionkey failed " + r);
 
         System.out.println("\t\t Decrypted data:");
-        Util.printBytes(r.getData());
+        Client.Util.printBytes(r.getData());
 
         System.out.println("Decrypted data in String format: "+new String(r.getData(), "UTF-8"));
 
@@ -209,7 +206,7 @@ public class Client {
 
 
     private static SecureConnection setupSecureConnection(String with) throws Exception {
-        SecureConnection secureConnection = new SecureConnection();
+        SecureConnection secureConnection = new SecureConnection(c);
         secureConnection.with("localhost", with);
 
         byte[] LCPECCertificate = secureConnection.getECCertificate();
@@ -320,6 +317,23 @@ public class Client {
             throw new Exception("Name request failed");
         if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
             throw new Exception("PIN verification is required");
+    }
+
+    private static void startServer() {
+        new Thread(() -> {
+            int portNumber = 13000;
+            IOThread ioThread = null;
+            try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
+                System.out.println("Server listening on port "+portNumber);
+                while (true) {
+                    ioThread = new IOThread(serverSocket.accept());
+                    ioThread.start();
+                }
+            } catch (IOException e) {
+                System.err.println("Could not listen on port " + portNumber);
+                System.exit(-1);
+            }
+        });
     }
 
     private static void simulationPreProcessing(IConnection c) throws Exception {

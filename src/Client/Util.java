@@ -1,3 +1,5 @@
+package Client;
+
 /**
  * Created by Gilles Callebaut on 24/03/2016.
  *
