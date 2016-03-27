@@ -4,10 +4,8 @@ import connection.*;
 
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
 
@@ -15,28 +13,37 @@ import java.security.cert.CertificateException;
 public class Client {
 
     public final static byte IDENTITY_CARD_CLA = (byte) 0x80;
-    private static final byte VALIDATE_PIN_INS = 0x22;
-    private final static short SW_VERIFICATION_FAILED = 0x6300;
-    private final static short SW_PIN_VERIFICATION_REQUIRED = 0x6301;
+    public static final byte VALIDATE_PIN_INS = 0x22;
+    public final static short SW_VERIFICATION_FAILED = 0x6300;
+    public final static short SW_PIN_VERIFICATION_REQUIRED = 0x6301;
 
-    private static final byte GET_SERIAL_INS = 0x24;
-    private static final byte GET_NAME_INS = 0x26;
+    public static final byte GET_SERIAL_INS = 0x24;
+    public static final byte GET_NAME_INS = 0x26;
 
-    private static final byte GET_EC_CERTIFICATE = 0x34;
-    private static final byte CLEAR_OFFSET_INS = 0x35;
-    private static final byte GENERATE_SESSION_KEY = 0x36;
+    public static final byte GET_EC_CERTIFICATE = 0x34;
+    public static final byte CLEAR_OFFSET_INS = 0x35;
+    public static final byte GENERATE_SESSION_KEY = 0x36;
 
-    private static final byte ENCRYPT_BYTES_WITH_SESSION_KEY = 0x37;
+    public static final byte ENCRYPT_BYTES_WITH_SESSION_KEY = 0x37;
     private static final byte DECRYPT_BYTES_WITH_SESSION_KEY = 0x39;
 
-    private static final byte REGISTER_SHOP_PSEUDONYM = 0x38;
-    private static final byte REGISTER_SHOP_CERTIFICATE = 0x39;
-    private static final byte REGISTER_SHOP_NAME = 0x40;
-    private static final byte REGISTER_SHOP_COMPLETE = 0x41;
+    public static final byte REGISTER_SHOP_PSEUDONYM = 0x38;
+    public static final byte REGISTER_SHOP_CERTIFICATE = 0x39;
+    public static final byte REGISTER_SHOP_NAME = 0x40;
+    public static final byte REGISTER_SHOP_COMPLETE = 0x41;
 
     public static final byte CLOSE_SECURE_CONNECTION = 0x42;
 
+    public static final byte MW_MUST_BE_AUTHENTICATED = (byte) 0xff;
+
     private static final byte TEST = 0x43;
+
+    public static final byte INIT_CHALLENGE = 0x44;
+    public static final byte CHALLENGE_ACCEPTED = 0x45;
+    public static final byte GET_NEXT_CHALLENGE = 0x46;
+
+    public static final byte GET_CURRENT_CHALLENGE = 0x47;
+
 
 
 
@@ -46,9 +53,6 @@ public class Client {
 
 
     public static void main(String[] args) throws Exception {
-
-
-        startServer();
 
         if (isSimulation) {
             // Simulation:
@@ -72,37 +76,41 @@ public class Client {
                 simulationPreProcessing(c);
             }
 
+            startServer();
+
             SmartCardConnection.setup(c);
-            //TODO use secureCardconnection!!
-            requestRegistration("Coolblue");
+            //test();
+           requestRegistration("Coolblue");
 
         } finally {
             c.close(); // close the connection with the card
         }
     }
 
-    /*
-    private static void test() throws Exception {
-        byte[] data = SmartCardConnection.sendAndReceive(TEST, (byte) 0x00, (byte) 0x00, new byte[]{0x01, 0x02, 0x03}, 0xff);
+
+/*    private static void test() throws Exception {
+        byte[] data = SmartCardConnection.sendAndReceive(TEST, (byte) 0x00, (byte) 0x00, new byte[]{0x01, 0x02, 0x03});
         Util.printBytes(data);
     }*/
 
     private static void requestRegistration(String shopName) throws Exception {
-        sendPin(c);
+        SmartCardConnection.sendPin(new byte[]{0x01, 0x02, 0x03, 0x04});
         try {
-            SecureConnection secureConnection = setupSecureConnection("LCP");
+            SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP",c);
 
-            byte[] encryptedShopName = encryptOnSC(shopName);
+            byte[] encryptedShopName = SmartCardConnection.encrypt(shopName);
             //byte[] decryptedShopName = decryptOnSC(encryptedShopName);
+            byte[] encryptedSerialNumber = SmartCardConnection.getSerialNumber();
 
             secureConnection.send("RequestRegistration");
+            //secureConnection.send(encryptedSerialNumber);
             secureConnection.send(encryptedShopName);
             //pseudonym for that particular shop
-           // byte[] encryptedPseudonym = secureConnection.receiveBytes();
+            byte[] encryptedPseudonym = secureConnection.receiveBytes();
             // Certificate signed by CA with pseudonym in for shop <shopname>
-           // byte[] encryptedCertificate = secureConnection.receiveBytes();
+            byte[] encryptedCertificate = secureConnection.receiveBytes();
 
-           // saveShopRegistrationToSC(encryptedPseudonym, encryptedCertificate, shopName);
+            SmartCardConnection.saveShopRegistration(encryptedPseudonym, encryptedCertificate, shopName);
 
             // close connection == sessionkey = null on SC
             secureConnection.close(c);
@@ -131,145 +139,7 @@ public class Client {
         return r.getData();
     }*/
 
-    private static void saveShopRegistrationToSC(byte[] encryptedPseudonym, byte[] encryptedCertificate, String shopName) throws Exception {
-        System.out.println("Started saving registration for shop: " + shopName + " on SC");
-        savePseudonymOnSC(encryptedPseudonym);
-        saveCertificateOnSC(encryptedCertificate);
-        saveShopNameOnSC(shopName);
-        registryComplete();
-        System.out.println("Ended registration of shop on SC");
-    }
 
-    private static void registryComplete() throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        // SC will make a new shop entry with given parameters
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_COMPLETE, 0x00, 0x00);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_NAME failed " + r);
-    }
-
-    private static void saveShopNameOnSC(String shopName) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_NAME, 0x00, 0x00, shopName.getBytes(StandardCharsets.UTF_8));
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_NAME failed " + r);
-    }
-
-    private static void saveCertificateOnSC(byte[] encryptedCertificate) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_CERTIFICATE, 0x00, 0x00, encryptedCertificate);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_CERTIFICATE failed " + r);
-    }
-
-    private static void savePseudonymOnSC(byte[] encryptedPseudonym) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_PSEUDONYM, 0x00, 0x00, encryptedPseudonym);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_PSEUDONYM failed " + r);
-    }
-
-
-    private static byte[] encryptOnSC(String shopName) throws Exception {
-        System.out.println("Started encryption on SC");
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        byte[] shopInBytes = shopName.getBytes(StandardCharsets.UTF_8);
-        System.out.println("\t\t Shop in bytes:");Util.printBytes(shopInBytes);
-        a = new CommandAPDU(IDENTITY_CARD_CLA, ENCRYPT_BYTES_WITH_SESSION_KEY, 0x00, 0x00,shopInBytes , 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Encrypt bytes with sessionkey failed " + r);
-
-        System.out.println("\t\t Encrypted data:");
-        Util.printBytes(r.getData());
-
-        System.out.println("Ended encryption on SC");
-        return r.getData();
-    }
-
-
-
-
-
-    private static SecureConnection setupSecureConnection(String with) throws Exception {
-        SecureConnection secureConnection = new SecureConnection(c);
-        secureConnection.with("localhost", with);
-
-        byte[] LCPECCertificate = secureConnection.getECCertificate();
-
-        /* Sending Card EC certificate */
-        System.out.println("\nGetting publicECKey from JavaCard");
-        byte[] cardECCertificate = getECCertificateFromCard();
-        System.out.println("Sending EC certificate...");
-        secureConnection.send(cardECCertificate);
-        System.out.println("Done sending");
-
-        byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(LCPECCertificate, SecureConnection.LCP_NAME);
-        generateSessionKey(ecPublicKeyOtherPartyBytes);
-
-        System.out.println("\nSecure Connection has been setup");
-        return secureConnection;
-    }
-
-
-
-
-    private static void generateSessionKey(byte[] publicKeyOtherPartyBytes) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GENERATE_SESSION_KEY, 0x00, 0x00, publicKeyOtherPartyBytes, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Generate SessionKey failed " + r);
-
-        System.out.println("ONLY IN DEBUG: Received sessionkey: ");
-        Util.printBytes(r.getData());
-    }
-
-    private static byte[] getECCertificateFromCard() throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CLEAR_OFFSET_INS, 0xf0, 0x00, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Get certificate failed " + r);
-
-
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_EC_CERTIFICATE, 0xf0, 0x00, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Get certificate failed " + r);
-        outputStream.write(r.getData());
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_EC_CERTIFICATE, 0xf0, 0x00, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Get certificate failed " + r);
-        outputStream.write(r.getData());
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_EC_CERTIFICATE, 0x6b, 0x00, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Get certificate failed " + r);
-        outputStream.write(r.getData());
-
-        return outputStream.toByteArray();
-    }
 
     public static boolean verify(byte[] data, PublicKey publicKey, byte[] sign) {
         Signature signer;
@@ -284,40 +154,6 @@ public class Client {
         return false;
     }
 
-    private static void sendPin(IConnection c) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-        // 2. Send PIN
-        a = new CommandAPDU(IDENTITY_CARD_CLA, VALIDATE_PIN_INS, 0x00, 0x00, new byte[]{0x01, 0x02, 0x03, 0x04});
-        r = c.transmit(a);
-        System.out.println(r);
-        if (r.getSW() == SW_VERIFICATION_FAILED)
-            throw new Exception("PIN INVALID");
-        else if (r.getSW() != 0x9000)
-            throw new Exception("Exception on the card: " + r.getSW());
-        System.out.println("PIN Verified");
-
-        // 3. request serial number of card
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_SERIAL_INS, 0x00, 0x00, 0x03);
-        r = c.transmit(a);
-        System.out.println(r);
-        if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
-            throw new Exception("PIN verification is required");
-        if (r.getSW() != 0x9000)
-            throw new Exception("Serial Number request failed " + r.getSW());
-        System.out.print("Serial ID : ");
-        Util.printBytes(r.getData());
-
-        // 4. getName
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_NAME_INS, 0x00, 0x00, 0xff);
-        r = c.transmit(a);
-        System.out.print("Name : ");
-        Util.printBytes(r.getData());
-        if (r.getSW() != 0x9000)
-            throw new Exception("Name request failed");
-        if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
-            throw new Exception("PIN verification is required");
-    }
 
     private static void startServer() {
         new Thread(() -> {

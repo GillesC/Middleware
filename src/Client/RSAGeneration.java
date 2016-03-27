@@ -49,7 +49,7 @@ public class RSAGeneration {
         System.out.println("Length: "+privKey.getModulus().toByteArray().length);
 
 
-        System.out.print("byte[] pubKeyMW = new byte[]{");
+        System.out.print("byte[] pubKeySc = new byte[]{");
         for (byte b : pubKey.getEncoded()) {
             System.out.print("(byte) 0x" + String.format("%02x", b) + ", ");
         }

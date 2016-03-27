@@ -1,5 +1,6 @@
 package connection;
 
+import Client.SecurityUtil;
 import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -109,5 +110,25 @@ public class SecureConnection {
         ResponseAPDU r = c.transmit(a);
         if (r.getSW() != 0x9000)
             throw new Exception("CLOSE_SECURE_CONNECTION failed " + r);
+    }
+
+    public static SecureConnection setupSecureConnection(String with, IConnection c) throws Exception {
+        SecureConnection secureConnection = new SecureConnection(c);
+        secureConnection.with("localhost", with);
+
+        byte[] LCPECCertificate = secureConnection.getECCertificate();
+
+        /* Sending Card EC certificate */
+        System.out.println("\nGetting publicECKey from JavaCard");
+        byte[] cardECCertificate = SmartCardConnection.getECCertificateFromCard();
+        System.out.println("Sending EC certificate...");
+        secureConnection.send(cardECCertificate);
+        System.out.println("Done sending");
+
+        byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(LCPECCertificate, SecureConnection.LCP_NAME);
+        SmartCardConnection.generateSessionKey(ecPublicKeyOtherPartyBytes);
+
+        System.out.println("\nSecure Connection has been setup");
+        return secureConnection;
     }
 }
