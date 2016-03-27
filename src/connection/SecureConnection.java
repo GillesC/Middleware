@@ -27,10 +27,11 @@ import static Client.Client.IDENTITY_CARD_CLA;
  * Implementation of a secure connection based on PKI and ECKeys (in javacard)
  */
 public class SecureConnection {
-    Map<String, Integer> serviceToPortnumberMap = new HashMap<String, Integer>();
-    String hostName = "localhost";
-    int portNumber;
-    IConnection c;
+    private Map<String, Integer> serviceToPortnumberMap = new HashMap<String, Integer>();
+    private String hostName = "localhost";
+    private int portNumber;
+    private IConnection c;
+    private static byte[] cardECCertificate = null;
 
     public final static String LCP_NAME = "www.LCP.be";
     public final static String MY_JAVACARD_NAME = "www.Javacard.be";
@@ -45,7 +46,19 @@ public class SecureConnection {
     }
 
     private void mappingPortNumberToService() {
+        System.out.println("Loading Portnumbers for services");
         serviceToPortnumberMap.put("LCP" , 15151);
+        System.out.println("\t LCP loaded");
+        serviceToPortnumberMap.put("Delhaize" , 14000);
+        System.out.println("\t Delhaize loaded");
+        serviceToPortnumberMap.put("Colruyt" , 14001);
+        System.out.println("\t Colruyt loaded");
+        serviceToPortnumberMap.put("Carrefour" , 14002);
+        System.out.println("\t Carrefour loaded");
+        serviceToPortnumberMap.put("Spar" , 14003);
+        System.out.println("\t Spar loaded");
+        serviceToPortnumberMap.put("Aldi" , 14004);
+        System.out.println("\t Aldi loaded");
     }
 
     public void with(String hostname, String service) throws IOException {
@@ -60,7 +73,7 @@ public class SecureConnection {
     }
 
     private void startSecureConnection() throws IOException {
-        System.out.println(hostName+" "+portNumber);
+        System.out.println("Starting secure connection with: "+hostName+" port:"+portNumber);
         socket = new Socket(hostName, portNumber);
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
@@ -116,19 +129,27 @@ public class SecureConnection {
         SecureConnection secureConnection = new SecureConnection(c);
         secureConnection.with("localhost", with);
 
-        byte[] LCPECCertificate = secureConnection.getECCertificate();
+        byte[] ECCertificateOtherParty = secureConnection.getECCertificate();
 
         /* Sending Card EC certificate */
         System.out.println("\nGetting publicECKey from JavaCard");
-        byte[] cardECCertificate = SmartCardConnection.getECCertificateFromCard();
+        if(cardECCertificate==null) cardECCertificate = SmartCardConnection.getECCertificateFromCard();
+        else{
+            System.out.println("publicECKey is cached, getting it...");
+        }
         System.out.println("Sending EC certificate...");
         secureConnection.send(cardECCertificate);
         System.out.println("Done sending");
 
-        byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(LCPECCertificate, SecureConnection.LCP_NAME);
+        if(with.equals("LCP")) with = SecureConnection.LCP_NAME;
+        byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(ECCertificateOtherParty, with);
         SmartCardConnection.generateSessionKey(ecPublicKeyOtherPartyBytes);
 
         System.out.println("\nSecure Connection has been setup");
         return secureConnection;
+    }
+
+    public static void sendLogsToLCP() {
+        //TODO
     }
 }

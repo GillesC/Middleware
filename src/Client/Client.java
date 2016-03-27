@@ -48,12 +48,22 @@ public class Client {
     public static final byte REGISTER_SHOP_CERTIFICATE_PART2 = 0x49;
     public static final byte REGISTER_SHOP_CERTIFICATE_PART3 = 0x50;
 
+    public static final byte GET_PSEUDONYM_CERTIFICATE_PART1 = 0x51;
+    public static final byte GET_PSEUDONYM_CERTIFICATE_PART2 = 0x52;
+    public static final byte GET_PSEUDONYM_CERTIFICATE_PART3 = 0x53;
 
+    public static final byte SELECT_SHOP = 0x54;
+    public static final byte CHANGE_LP = 0x55;
+
+    public static final byte GET_NUMBER_OF_LOGS = 0x56;
+
+
+    public static final byte NO_SHOP_FOUND = (byte) 0xfd;
 
 
     private static final boolean isSimulation = false;
 
-    private static IConnection c;
+    public static IConnection c;
 
 
     public static void main(String[] args) throws Exception {
@@ -71,7 +81,7 @@ public class Client {
 
         try {
             /*
-			 * For more info on the use of CommandAPDU and ResponseAPDU: See
+             * For more info on the use of CommandAPDU and ResponseAPDU: See
 			 * http://java.sun.com/javase/6/docs/jre/api/security/smartcardio/
 			 * spec/index.html
 			 */
@@ -80,11 +90,12 @@ public class Client {
                 simulationPreProcessing(c);
             }
 
+
             startServer();
 
             SmartCardConnection.setup(c);
-            //test();
-           requestRegistration("Delhaize");
+            requestRegistration("Delhaize");
+
 
         } finally {
             c.close(); // close the connection with the card
@@ -101,7 +112,7 @@ public class Client {
         SmartCardConnection.sendPin(new byte[]{0x01, 0x02, 0x03, 0x04});
         try {
             System.out.println("------------------- setting up SECURE CONNECTION with LCP ---------------------");
-            SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP",c);
+            SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
 
 
             byte[] encryptedShopName = SmartCardConnection.encrypt(shopName);
@@ -152,7 +163,6 @@ public class Client {
     }*/
 
 
-
     public static boolean verify(byte[] data, PublicKey publicKey, byte[] sign) {
         Signature signer;
         try {
@@ -172,7 +182,7 @@ public class Client {
             int portNumber = 13000;
             IOThread ioThread = null;
             try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
-                System.out.println("Server listening on port "+portNumber);
+                System.out.println("Server listening on port " + portNumber);
                 while (true) {
                     ioThread = new IOThread(serverSocket.accept());
                     ioThread.start();
@@ -181,7 +191,7 @@ public class Client {
                 System.err.println("Could not listen on port " + portNumber);
                 System.exit(-1);
             }
-        });
+        }).start();
     }
 
     private static void simulationPreProcessing(IConnection c) throws Exception {

@@ -10,6 +10,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -176,7 +178,9 @@ public class SmartCardConnection {
     }
 
     private static void savePseudonym(byte[] encryptedPseudonym) throws Exception {
-        sendDataWithChallenge(REGISTER_SHOP_PSEUDONYM, encryptedPseudonym);
+        byte[] pseudo = sendDataWithChallengeAndReceive(REGISTER_SHOP_PSEUDONYM, encryptedPseudonym,true);
+        System.out.println("Saved pseudo is "+new String(pseudo));
+
     }
 
 
@@ -236,6 +240,10 @@ public class SmartCardConnection {
         r = c.transmit(a);
         if (r.getSW() != 0x9000)
             throw new Exception(CMD+" failed " + r);
+    }
+
+    private static byte[]  sendInsAndReceive(byte CMD, boolean encryptedMW) throws Exception {
+        return sendInsAndReceive(CMD, (byte) 0x00, (byte) 0x00, encryptedMW);
     }
 
     private static byte[] sendInsAndReceive(byte CMD, byte p1, byte p2, boolean encryptedMW) throws Exception {
@@ -306,4 +314,35 @@ public class SmartCardConnection {
         fetchNextChallenge();
     }
 
+    public static byte[] getPseudonymCertificateFromCard(String shopName) throws Exception {
+        byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
+        byte[] encryptedCertificatePart1 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART1,shopNameInBytes , false);
+        if(encryptedCertificatePart1.length!=200) System.err.println("Wrong certificate size!");
+        byte[] encryptedCertificatePart2 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART2,shopNameInBytes , false);
+        if(encryptedCertificatePart2.length!=200) System.err.println("Wrong certificate size!");
+        byte[] encryptedCertificatePart3 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART3,shopNameInBytes , false);
+        if(encryptedCertificatePart3.length!=112) System.err.println("Wrong certificate size!");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(encryptedCertificatePart1);
+        outputStream.write(encryptedCertificatePart2);
+        outputStream.write(encryptedCertificatePart3);
+
+        return outputStream.toByteArray();
+    }
+
+    public static byte[] changeLP(String shopName, byte[] encryptedAmount) throws Exception {
+        byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
+        // 1. select shop: card wil iterate through shopEntries and load the selected shopEntry
+        // this will be loaded automatically when getPseudonymCertificateFromCard is called
+        // so there is no need to do this again
+        //sendDataWithChallenge(SELECT_SHOP, shopNameInBytes);
+
+        // 2. changeLP with <amount> return: encrypted succeeded msg (0x00) otherwise failed
+        return sendDataWithChallengeAndReceive(CHANGE_LP, encryptedAmount, false);
+    }
+
+    public static byte[] getNumberOfLogs() throws Exception {
+        return sendInsAndReceive(GET_NUMBER_OF_LOGS, false);
+    }
 }
