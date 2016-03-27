@@ -44,6 +44,10 @@ public class Client {
 
     public static final byte GET_CURRENT_CHALLENGE = 0x47;
 
+    public static final byte REGISTER_SHOP_CERTIFICATE_PART1 = 0x48;
+    public static final byte REGISTER_SHOP_CERTIFICATE_PART2 = 0x49;
+    public static final byte REGISTER_SHOP_CERTIFICATE_PART3 = 0x50;
+
 
 
 
@@ -80,7 +84,7 @@ public class Client {
 
             SmartCardConnection.setup(c);
             //test();
-           requestRegistration("Coolblue");
+           requestRegistration("Delhaize");
 
         } finally {
             c.close(); // close the connection with the card
@@ -96,24 +100,32 @@ public class Client {
     private static void requestRegistration(String shopName) throws Exception {
         SmartCardConnection.sendPin(new byte[]{0x01, 0x02, 0x03, 0x04});
         try {
+            System.out.println("------------------- setting up SECURE CONNECTION with LCP ---------------------");
             SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP",c);
+
 
             byte[] encryptedShopName = SmartCardConnection.encrypt(shopName);
             //byte[] decryptedShopName = decryptOnSC(encryptedShopName);
             byte[] encryptedSerialNumber = SmartCardConnection.getSerialNumber();
 
+            System.out.println("Sending \"RequestRegistration\" information");
             secureConnection.send("RequestRegistration");
-            //secureConnection.send(encryptedSerialNumber);
+            System.out.println("\t Sending encrypted Serial number");
+            secureConnection.send(encryptedSerialNumber);
+            System.out.println("\t Sending encrypted shopname");
             secureConnection.send(encryptedShopName);
             //pseudonym for that particular shop
+            System.out.println("\t Receiving encrypted pseudonym");
             byte[] encryptedPseudonym = secureConnection.receiveBytes();
             // Certificate signed by CA with pseudonym in for shop <shopname>
+            System.out.println("\t Receiving encrypted certificate");
             byte[] encryptedCertificate = secureConnection.receiveBytes();
 
             SmartCardConnection.saveShopRegistration(encryptedPseudonym, encryptedCertificate, shopName);
 
             // close connection == sessionkey = null on SC
             secureConnection.close(c);
+            System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
         } catch (CertificateException certE) {
             System.err.println("CertificateException: " + certE.getMessage());
         }

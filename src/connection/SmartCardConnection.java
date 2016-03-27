@@ -26,64 +26,10 @@ import static Client.Client.*;
 public class SmartCardConnection {
 
     private static IConnection c;
-    public static byte challengeP1;
-    public static byte challengeP2;
-
-    public static void sendIns(byte CMD, byte p1, byte p2) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r);
-    }
+    private static byte challengeP1;
+    private static byte challengeP2;
 
 
-    public static void sendData(byte CMD, byte p1, byte p2, byte[] data) throws Exception {
-        System.out.println("Send data: "); Util.printBytes(data);
-
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, data, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r);
-    }
-
-    public static byte[] sendInsAndReceive(byte CMD, byte p1, byte p2) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        System.out.println("Send instruction: [CMD "+CMD+" p1 "+p1+" p2 "+p2+"]");
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r +" SW: "+r.getSW());
-
-        System.out.println("Received encrypted data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
-        return decryptWithPrivateKey(r.getData());
-    }
-
-
-
-    public static byte[] sendDataAndReceive(byte CMD, byte p1, byte p2, byte[] data) throws Exception {
-        //byte[] dataToSend = encryptWithPublicKeySC(data);
-        byte[] dataToSend = data;
-        System.out.println("Send data: "); Util.printBytes(data);
-
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, dataToSend, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r);
-
-        System.out.println("Received encrypted data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
-        return decryptWithPrivateKey(r.getData());
-    }
 
     private static byte[] decryptWithPrivateKey(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
@@ -135,22 +81,12 @@ public class SmartCardConnection {
         else if (r.getSW() != 0x9000)
             throw new Exception("Exception on the card: " + r.getSW());
         System.out.println("PIN Verified");
-
-        /*// 4. getName
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GET_NAME_INS, 0x00, 0x00, 0xff);
-        r = c.transmit(a);
-        System.out.print("Name : ");
-        Util.printBytes(r.getData());
-        if (r.getSW() != 0x9000)
-            throw new Exception("Name request failed");
-        if (r.getSW() == SW_PIN_VERIFICATION_REQUIRED)
-            throw new Exception("PIN verification is required");*/
     }
 
     private static void authenticate() throws Exception {
-        byte[] challenge = SmartCardConnection.sendInsAndReceive(INIT_CHALLENGE, (byte) 0x00, (byte) 0x00);
+        byte[] challenge = SmartCardConnection.sendInsAndReceive(INIT_CHALLENGE, (byte) 0x00, (byte) 0x00, true);
         System.out.println("Challenge: "); Util.printBytes(challenge);
-        byte[] nextChallenge = SmartCardConnection.sendDataAndReceive(CHALLENGE_ACCEPTED,(byte) 0x00, (byte) 0x00, challenge);
+        byte[] nextChallenge = SmartCardConnection.sendDataAndReceive(CHALLENGE_ACCEPTED,(byte) 0x00, (byte) 0x00, challenge, true);
         if(nextChallenge.length!=2) System.err.println("Next challenge has to be 2 bytes long");
         else SmartCardConnection.setNextChallenge(nextChallenge);
         System.out.println("NextChallenge: "); Util.printBytes(nextChallenge);
@@ -158,25 +94,14 @@ public class SmartCardConnection {
 
     /* this is a secure command thus the challenges needs to be included in the parameters */
     public static void generateSessionKey(byte[] publicKeyOtherPartyBytes) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, GENERATE_SESSION_KEY, challengeP1, challengeP2, publicKeyOtherPartyBytes, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("Generate SessionKey failed " + r);
-
-        System.out.println("ONLY IN DEBUG: Received sessionkey: ");
-        Util.printBytes(r.getData());
-
-        fetchNextChallenge();
+        sendDataWithChallengeAndReceive(GENERATE_SESSION_KEY, publicKeyOtherPartyBytes, false);
     }
 
     private static void fetchNextChallenge() throws Exception {
-        byte[] nextChallenge = SmartCardConnection.sendInsAndReceive(GET_NEXT_CHALLENGE,(byte) 0x00, (byte) 0x00);
+        byte[] nextChallenge = SmartCardConnection.sendInsAndReceive(GET_NEXT_CHALLENGE,(byte) 0x00, (byte) 0x00,true);
         if(nextChallenge.length!=2) System.err.println("Next challenge has to be 2 bytes long");
         else SmartCardConnection.setNextChallenge(nextChallenge);
-        System.out.println("NextChallenge: "); Util.printBytes(nextChallenge);
+        //System.out.println("NextChallenge: "); Util.printBytes(nextChallenge);
     }
 
     public static byte[] getECCertificateFromCard() throws Exception {
@@ -212,79 +137,48 @@ public class SmartCardConnection {
     /* this is a secure command thus the challenges needs to be included in the parameters */
     public static byte[] getSerialNumber() throws Exception {
         System.out.println("Get serial number from card encrypted with sessionkey");
-        byte[] encryptedSerialNumber = sendSecureInsAndReceiveSessionData(GET_SERIAL_INS, challengeP1, challengeP2);
-        System.out.println("Return values"); Util.printBytes(encryptedSerialNumber);
-        fetchNextChallenge();
+        byte[] encryptedSerialNumber = sendInsWithChallengeAndReceiveSessionData(GET_SERIAL_INS);
+        System.out.println("encryptedSerialNumber"); Util.printBytes(encryptedSerialNumber);
         return encryptedSerialNumber;
     }
 
-    private static byte[] sendSecureInsAndReceiveSessionData(byte CMD, byte p1, byte p2) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, new byte[]{0x00}, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r +" SW: "+r.getSW());
-
-        System.out.println("Received encrypted data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
-        return r.getData();
-    }
-
-    private static byte[] sendSecureInsAndReceive(byte CMD, byte p1, byte p2) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, new byte[]{0x00}, 0xff);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception(CMD+" failed " + r +" SW: "+r.getSW());
-
-        System.out.println("Received encrypted data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
-        return decryptWithPrivateKey(r.getData());
-    }
 
 
     public static void registryComplete() throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        // SC will make a new shop entry with given parameters
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_COMPLETE, 0x00, 0x00);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_NAME failed " + r);
+        sendInsWithChallenge(REGISTER_SHOP_COMPLETE);
     }
 
-    public static void saveShopName(String shopName) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_NAME, 0x00, 0x00, shopName.getBytes(StandardCharsets.UTF_8));
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_NAME failed " + r);
+    private static void saveShopName(String shopName) throws Exception {
+        sendDataWithChallenge(REGISTER_SHOP_NAME, shopName.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static void saveCertificate(byte[] encryptedCertificate) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
+    /* saving certificate for pseudonym
+    Length encrypted = 416
+    Length decrypted = 413
+     */
+    private static void saveCertificate(byte[] encryptedCertificate) throws Exception {
+        if(encryptedCertificate.length!=512) System.err.println("Wrong encrypted certificate size");
+        System.out.println("\t Sending first part");
+        byte[] certPart1 = new byte[200];
+        System.arraycopy(encryptedCertificate, 0, certPart1, 0, 200);
+        sendDataWithChallenge(REGISTER_SHOP_CERTIFICATE_PART1, certPart1);
+        System.out.println("\t Sending second part");
+        byte[] certPart2 = new byte[200];
+        System.arraycopy(encryptedCertificate, 200, certPart2, 0, 200);
+        sendDataWithChallenge(REGISTER_SHOP_CERTIFICATE_PART2, certPart2);
+        System.out.println("\t Sending last part");
+        byte[] certPart3 = new byte[112];
+        System.arraycopy(encryptedCertificate, 400, certPart3, 0, 112);
+        sendDataWithChallenge(REGISTER_SHOP_CERTIFICATE_PART3, certPart3);
+        //System.out.println("Length of decrypted cert: "+Util.readShort(length, 0));
 
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_CERTIFICATE, 0x00, 0x00, encryptedCertificate);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_CERTIFICATE failed " + r);
+        //sendDataWithChallenge(REGISTER_SHOP_CERTIFICATE, encryptedCertificate);
     }
 
-    public static void savePseudonym(byte[] encryptedPseudonym) throws Exception {
-        CommandAPDU a;
-        ResponseAPDU r;
-
-        a = new CommandAPDU(IDENTITY_CARD_CLA, REGISTER_SHOP_PSEUDONYM, 0x00, 0x00, encryptedPseudonym);
-        r = c.transmit(a);
-        if (r.getSW() != 0x9000)
-            throw new Exception("REGISTER_SHOP_PSEUDONYM failed " + r);
+    private static void savePseudonym(byte[] encryptedPseudonym) throws Exception {
+        sendDataWithChallenge(REGISTER_SHOP_PSEUDONYM, encryptedPseudonym);
     }
+
 
     public static byte[] encrypt(String shopName) throws Exception {
         System.out.println("Started encryption on SC");
@@ -308,11 +202,108 @@ public class SmartCardConnection {
 
     public static void saveShopRegistration(byte[] encryptedPseudonym, byte[] encryptedCertificate, String shopName) throws Exception {
         System.out.println("Started saving registration for shop: " + shopName + " on SC");
+        System.out.println("\t Saving psuedonym");
         SmartCardConnection.savePseudonym(encryptedPseudonym);
+        System.out.println("\t Saving certificate");
         SmartCardConnection.saveCertificate(encryptedCertificate);
+        System.out.println("\t Saving shopname");
         SmartCardConnection.saveShopName(shopName);
         SmartCardConnection.registryComplete();
         System.out.println("Ended registration of shop on SC");
+    }
+
+
+
+    /************** SEND AND RECEIVE METHODS *************************/
+    public static void sendIns(byte CMD, byte p1, byte p2) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, 0xff);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception(CMD+" failed " + r);
+    }
+
+
+    public static void sendData(byte CMD, byte p1, byte p2, byte[] data) throws Exception {
+        System.out.println("Send data (length "+data.length+"): "); Util.printBytes(data);
+
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, data, 0xff);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception(CMD+" failed " + r);
+    }
+
+    private static byte[] sendInsAndReceive(byte CMD, byte p1, byte p2, boolean encryptedMW) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        //System.out.println("Send instruction: [CMD "+CMD+" p1 "+p1+" p2 "+p2+"]");
+        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, 0xff);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception(CMD+" failed " + r +" SW: "+r.getSW());
+
+        //System.out.println("Received encrypted data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
+        if(encryptedMW) return decryptWithPrivateKey(r.getData());
+        else return r.getData();
+    }
+
+
+
+    private static byte[] sendDataAndReceive(byte CMD, byte p1, byte p2, byte[] data, boolean encryptedMW) throws Exception {
+        //byte[] dataToSend = encryptWithPublicKeySC(data);
+        byte[] dataToSend = data;
+        System.out.println("Send data: "); Util.printBytes(data);
+
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, p1, p2, dataToSend, 0xff);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception(CMD+" failed " + r);
+
+        System.out.println("Received data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
+        if(encryptedMW) return decryptWithPrivateKey(r.getData());
+        else return r.getData();
+    }
+
+    private static void sendInsWithChallenge(byte CMD) throws Exception {
+        sendIns(CMD,challengeP1,challengeP2);
+    }
+
+    private static byte[] sendInsWithChallengeAndReceiveSessionData(byte CMD) throws Exception {
+        CommandAPDU a;
+        ResponseAPDU r;
+
+        System.out.println("Send instruction: [CMD "+CMD+" p1 "+challengeP1+" p2 "+challengeP2+"]");
+        a = new CommandAPDU(IDENTITY_CARD_CLA, CMD, challengeP1, challengeP2, new byte[]{0x00}, 0xff);
+        r = c.transmit(a);
+        if (r.getSW() != 0x9000)
+            throw new Exception(CMD+" failed " + r +" SW: "+r.getSW());
+
+        System.out.println("Received data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
+        return r.getData();
+    }
+
+    private static byte[] sendInsAndReceiveAndReceive(byte cmd, byte p1, byte p2, boolean encryptedMW) throws Exception {
+        return sendInsAndReceive(cmd, p1, p2, encryptedMW);
+    }
+
+    private static byte[] sendDataWithChallengeAndReceive(byte CMD, byte[] data, boolean encryptedMW) throws Exception {
+        byte[] d = sendDataAndReceive(CMD, challengeP1, challengeP2, data, encryptedMW);
+        fetchNextChallenge();
+        return d;
+    }
+
+    private static void sendDataWithChallenge(byte CMD, byte[] data) throws Exception {
+        sendData(CMD, challengeP1, challengeP2, data);
+        fetchNextChallenge();
     }
 
 }
