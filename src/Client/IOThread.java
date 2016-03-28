@@ -80,14 +80,10 @@ public class IOThread extends Thread{
 
         // 4. send response back to shop
         secureConnection.send(encryptedResponse);
-
-        // 5. request number of transactions logged
-        byte[] numberOfLogsInBytes = SmartCardConnection.getNumberOfLogs();
-
-        // 6. if number is == 20 send to LCP secure
-        short numberOfLogs = Util.readShort(numberOfLogsInBytes, 0);
-        System.out.println("Number of transactions is "+numberOfLogs);
-        if(numberOfLogs==20) SecureConnection.sendLogsToLCP();
+        secureConnection.close(c);
         System.out.println("------------------- SECURE CONNECTION with "+shopName+" is closed ---------------------");
+
+        // 5. start possible revalidation procedure
+        Client.checkRevalidation();
     }
 }

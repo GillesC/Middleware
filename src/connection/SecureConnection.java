@@ -15,11 +15,13 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import static Client.Client.CLOSE_SECURE_CONNECTION;
 import static Client.Client.IDENTITY_CARD_CLA;
+import static Client.Client.c;
 
 
 /**
@@ -104,13 +106,10 @@ public class SecureConnection {
 
     /* Send methods */
 
-    public void send(String requestRegistration) throws IOException {
-        out.writeObject(requestRegistration);
+    public void send(Object obj) throws IOException {
+        out.writeObject(obj);
     }
 
-    public void send(byte[] bytesToSend) throws IOException {
-        out.writeObject(bytesToSend);
-    }
 
 
     /* receive methods */
@@ -147,9 +146,5 @@ public class SecureConnection {
 
         System.out.println("\nSecure Connection has been setup");
         return secureConnection;
-    }
-
-    public static void sendLogsToLCP() {
-        //TODO
     }
 }

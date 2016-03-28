@@ -345,4 +345,12 @@ public class SmartCardConnection {
     public static byte[] getNumberOfLogs() throws Exception {
         return sendInsAndReceive(GET_NUMBER_OF_LOGS, false);
     }
+
+    public static byte[] fetchNextLog() throws Exception {
+        return sendInsWithChallengeAndReceiveSessionData(GET_NEXT_LOG);
+    }
+
+    public static void clearLogs() throws Exception {
+        sendInsWithChallenge(CLEAR_LOGS);
+    }
 }
