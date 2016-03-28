@@ -34,12 +34,13 @@ public class IOThread extends Thread{
             System.out.println("Waiting for requests.");
             String request;
             while ((request = (String)in.readObject()) != null) {
-                processInput(request, in, out);
+                processInput(request);
             }
             System.out.println("Stopping run method");
         }
         catch (IOException e) {
             System.out.println("Connection lost, shutting down thread.");
+            e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -47,8 +48,7 @@ public class IOThread extends Thread{
     }
 
 
-    private void processInput(String request, ObjectInputStream in,
-                                 ObjectOutputStream out) throws Exception {
+    private void processInput(String request) throws Exception {
         System.out.println("Processing request: \""+request+"\"");
         switch (request) {
             case "changeLP":
@@ -82,11 +82,5 @@ public class IOThread extends Thread{
         secureConnection.send(encryptedResponse);
         secureConnection.close(c);
         System.out.println("------------------- SECURE CONNECTION with "+shopName+" is closed ---------------------");
-
-        // 5. start possible revalidation procedure
-        Client.checkRevalidation(false);
-
-        // 6. TODO ONLY FOR TESTING
-        Client.checkRevalidation(true);
     }
 }

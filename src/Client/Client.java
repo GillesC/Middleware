@@ -134,7 +134,7 @@ public class Client {
 
             boolean existsAlready = (boolean) secureConnection.in();
             if(existsAlready){
-                System.out.println("Shop already on card, closing connection");
+                System.err.println("Shop already on card, closing connection");
                 secureConnection.close(c);
                 System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
                 return;
@@ -205,6 +205,8 @@ public class Client {
             } catch (IOException e) {
                 System.err.println("Could not listen on port " + portNumber);
                 System.exit(-1);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }).start();
     }

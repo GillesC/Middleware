@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
+import java.util.HashMap;
 
 import static Client.Client.*;
 
@@ -31,6 +32,7 @@ public class SmartCardConnection {
     private static byte challengeP1;
     private static byte challengeP2;
 
+    private static HashMap<String, byte[]> cachePseudonym = new HashMap<>();
 
 
     private static byte[] decryptWithPrivateKey(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
@@ -315,6 +317,9 @@ public class SmartCardConnection {
     }
 
     public static byte[] getPseudonymCertificateFromCard(String shopName) throws Exception {
+        if(cachePseudonym.containsKey(shopName)){
+            return cachePseudonym.get(shopName);
+        }
         byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
         System.out.println("\t Sending Part 1");
         byte[] encryptedCertificatePart1 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART1,shopNameInBytes , false);
@@ -332,7 +337,9 @@ public class SmartCardConnection {
         outputStream.write(encryptedCertificatePart2);
         outputStream.write(encryptedCertificatePart3);
 
-        return outputStream.toByteArray();
+        byte[] pseudoCert = outputStream.toByteArray();
+        cachePseudonym.put(shopName, pseudoCert);
+        return pseudoCert;
     }
 
     public static byte[] changeLP(String shopName, byte[] encryptedAmount) throws Exception {
