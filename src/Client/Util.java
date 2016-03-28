@@ -1,5 +1,7 @@
 package Client;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * Created by Gilles Callebaut on 24/03/2016.
  *
@@ -20,5 +22,9 @@ public class Util {
 
     public static short readShort(byte[] data, int offset) {
         return (short) (((data[offset] << 8)) | ((data[offset + 1] & 0xff)));
+    }
+
+    public static byte[] stringToBytes(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
     }
 }

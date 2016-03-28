@@ -33,7 +33,7 @@ public class IOThread extends Thread{
             out = new ObjectOutputStream(this.socket.getOutputStream());
             System.out.println("Waiting for requests.");
             String request;
-            while ((request = (String)in.readObject()) != null) {
+            if ((request = (String)in.readObject()) != null) {
                 processInput(request);
             }
             System.out.println("Stopping run method");
@@ -68,6 +68,9 @@ public class IOThread extends Thread{
         System.out.println("------------------- setting up SECURE CONNECTION with "+shopName+" ---------------------");
         SecureConnection secureConnection = SecureConnection.setupSecureConnection(shopName,c);
 
+        // 0.1 send current LP value for that shop
+        byte[] encryptedLP = SmartCardConnection.getLP(shopName);
+
         // 1. send pesudonym certificate for that shop
         byte[] encryptedPseudonymCertificate = SmartCardConnection.getPseudonymCertificateFromCard(shopName);
         secureConnection.send(encryptedPseudonymCertificate);
@@ -79,8 +82,14 @@ public class IOThread extends Thread{
         byte[] encryptedResponse = SmartCardConnection.changeLP(shopName, encryptedAmount);
 
         // 4. send response back to shop
+        System.out.println("\t Sending response back");
         secureConnection.send(encryptedResponse);
         secureConnection.close(c);
         System.out.println("------------------- SECURE CONNECTION with "+shopName+" is closed ---------------------");
+        // 5. start possible revalidation procedure
+        Client.checkRevalidation(false);
+
+        // 6. TODO ONLY FOR TESTING
+       Client.checkRevalidation(true);
     }
 }

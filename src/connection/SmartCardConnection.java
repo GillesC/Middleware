@@ -35,7 +35,7 @@ public class SmartCardConnection {
     private static HashMap<String, byte[]> cachePseudonym = new HashMap<>();
 
 
-    private static byte[] decryptWithPrivateKey(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    public static byte[] decryptWithPrivateKey(byte[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
         Cipher asymCipher = Cipher.getInstance("RSA/None/PKCS1Padding", "BC");
 
@@ -306,6 +306,7 @@ public class SmartCardConnection {
     }
 
     private static byte[] sendDataWithChallengeAndReceive(byte CMD, byte[] data, boolean encryptedMW) throws Exception {
+        fetchNextChallenge();
         byte[] d = sendDataAndReceive(CMD, challengeP1, challengeP2, data, encryptedMW);
         fetchNextChallenge();
         return d;
@@ -317,9 +318,11 @@ public class SmartCardConnection {
     }
 
     public static byte[] getPseudonymCertificateFromCard(String shopName) throws Exception {
+        /*
         if(cachePseudonym.containsKey(shopName)){
             return cachePseudonym.get(shopName);
         }
+        */
         byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
         System.out.println("\t Sending Part 1");
         byte[] encryptedCertificatePart1 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART1,shopNameInBytes , false);
@@ -363,5 +366,10 @@ public class SmartCardConnection {
 
     public static void clearLogs() throws Exception {
         sendInsWithChallenge(CLEAR_LOGS);
+    }
+
+    public static byte[] getLP(String shop) throws Exception {
+        byte[] shopName = Util.stringToBytes(shop);
+        return sendDataWithChallengeAndReceive(GET_LP,shopName,false);
     }
 }

@@ -59,7 +59,9 @@ public class Client {
 
     public static final byte GET_NUMBER_OF_LOGS = 0x56;
     public static final byte GET_NEXT_LOG = 0x57;
-    public static final byte CLEAR_LOGS= 0x58;
+    public static final byte CLEAR_LOGS = 0x58;
+
+    public static final byte GET_LP = 0x59;
 
 
     public static final byte NO_SHOP_FOUND = (byte) 0xfd;
@@ -100,6 +102,7 @@ public class Client {
             SmartCardConnection.setup(c);
 
             requestRegistration("Aldi");
+            requestRegistration("Carrefour");
 
 
         } finally {
@@ -133,7 +136,7 @@ public class Client {
             secureConnection.send(encryptedShopName);
 
             boolean existsAlready = (boolean) secureConnection.in();
-            if(existsAlready){
+            if (existsAlready) {
                 System.err.println("Shop already on card, closing connection");
                 secureConnection.close(c);
                 System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
@@ -260,41 +263,48 @@ public class Client {
         byte[] numberOfLogsInBytes = SmartCardConnection.getNumberOfLogs();
         // if number is == 20 send to LCP secure
         short numberOfLogs = Util.readShort(numberOfLogsInBytes, 0);
-        System.out.println("Number of transactions is "+numberOfLogs);
-        if(callByGUI){
-            if(!(numberOfLogs == 0)) {
+        System.out.println("Number of transactions is " + numberOfLogs);
+        if (callByGUI) {
+            if (!(numberOfLogs == 0)) {
                 sendLogsToLCP(numberOfLogs);
             }
-        } else if(numberOfLogs==20) sendLogsToLCP(numberOfLogs);
+        } else if (numberOfLogs == 20) sendLogsToLCP(numberOfLogs);
         System.out.println("-------------- Ended revalidation --------------");
     }
 
     private static void sendLogsToLCP(int numOfLogs) throws Exception {
-        System.out.println("-------------- Sending logs to LCP server --------------");
-        SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP",c);
-        // 1. send commando "PushLogs"
-        secureConnection.send("PushLogs");
-        // 2. Ask all logs
-        ArrayList<byte[]> logs = new ArrayList<>();
-        for(int i= 0; i <numOfLogs; i++){
-            System.out.println("\tGetting log number "+i);
-            byte[] log = SmartCardConnection.fetchNextLog();
-            if(log.length!=128) System.err.println("Wrong encrypted logsize, expected 128 bytes");
-            logs.add(log);
-        }
-        System.out.println("\tAll logs are received from the SC");
+        new Thread(() -> {
+            try {
+                System.out.println("-------------- Sending logs to LCP server --------------");
+                SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
+                // 1. send commando "PushLogs"
+                secureConnection.send("PushLogs");
+                // 2. Ask all logs
+                ArrayList<byte[]> logs = new ArrayList<>();
+                for (int i = 0; i < numOfLogs; i++) {
+                    System.out.println("\tGetting log number " + i);
+                    byte[] log = SmartCardConnection.fetchNextLog();
+                    if (log.length != 128) System.err.println("Wrong encrypted logsize, expected 128 bytes");
+                    logs.add(log);
+                }
+                System.out.println("\tAll logs are received from the SC");
 
-        // 3. Send logs to LCP server
-        System.out.println("\tSending log ArrayList to LCP server");
-        secureConnection.send(logs);
+                // 3. Send logs to LCP server
+                System.out.println("\tSending log ArrayList to LCP server");
+                secureConnection.send(logs);
 
-        // 4. Delete logs in SC
-        System.out.println("\tClearing all logs from the SC");
-        SmartCardConnection.clearLogs();
+                // 4. Delete logs in SC
+                System.out.println("\tClearing all logs from the SC");
+                SmartCardConnection.clearLogs();
 
-        // 5. Close secure connection with the LCP server
-        secureConnection.close(c);
-        System.out.println("-------------- Ended secure connection to send logs to LCP server --------------");
+                // 5. Close secure connection with the LCP server
+                secureConnection.close(c);
+                System.out.println("-------------- Ended secure connection to send logs to LCP server --------------");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+
     }
 
     //			/* generate random 20 bytes as challenge */
