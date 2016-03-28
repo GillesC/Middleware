@@ -316,13 +316,17 @@ public class SmartCardConnection {
 
     public static byte[] getPseudonymCertificateFromCard(String shopName) throws Exception {
         byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
+        System.out.println("\t Sending Part 1");
         byte[] encryptedCertificatePart1 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART1,shopNameInBytes , false);
         if(encryptedCertificatePart1.length!=200) System.err.println("Wrong certificate size!");
+        System.out.println("\t Sending Part 2");
         byte[] encryptedCertificatePart2 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART2,shopNameInBytes , false);
         if(encryptedCertificatePart2.length!=200) System.err.println("Wrong certificate size!");
+        System.out.println("\t Sending Part 3");
         byte[] encryptedCertificatePart3 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART3,shopNameInBytes , false);
         if(encryptedCertificatePart3.length!=112) System.err.println("Wrong certificate size!");
 
+        System.out.println("\t Getting parts together...");
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         outputStream.write(encryptedCertificatePart1);
         outputStream.write(encryptedCertificatePart2);

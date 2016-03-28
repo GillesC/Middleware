@@ -1,6 +1,7 @@
 package connection;
 
 import Client.SecurityUtil;
+import Client.Util;
 import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -136,15 +137,22 @@ public class SecureConnection {
         else{
             System.out.println("publicECKey is cached, getting it...");
         }
-        System.out.println("Sending EC certificate...");
+        System.out.println("\t Sending EC certificate...");
+        Util.printBytes(cardECCertificate);
+
         secureConnection.send(cardECCertificate);
-        System.out.println("Done sending");
+        System.out.println("\t Done sending");
 
         if(with.equals("LCP")) with = SecureConnection.LCP_NAME;
         byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(ECCertificateOtherParty, with);
+        System.out.println("\t Sending ecPublicKeyOtherPartyBytes to SC");
         SmartCardConnection.generateSessionKey(ecPublicKeyOtherPartyBytes);
 
         System.out.println("\nSecure Connection has been setup");
         return secureConnection;
+    }
+
+    public Object in() throws IOException, ClassNotFoundException {
+        return in.readObject();
     }
 }

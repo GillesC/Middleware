@@ -47,7 +47,7 @@ public class IOThread extends Thread{
     }
 
 
-    private boolean processInput(String request, ObjectInputStream in,
+    private void processInput(String request, ObjectInputStream in,
                                  ObjectOutputStream out) throws Exception {
         System.out.println("Processing request: \""+request+"\"");
         switch (request) {
@@ -56,9 +56,9 @@ public class IOThread extends Thread{
             case "changelp":
             case "Changelp":
                 changeLP();
+                break;
             default: {
                 System.out.println("Request not recognized. Stopping connection ");
-                return false;
             }
         }
     }
@@ -84,6 +84,9 @@ public class IOThread extends Thread{
         System.out.println("------------------- SECURE CONNECTION with "+shopName+" is closed ---------------------");
 
         // 5. start possible revalidation procedure
-        Client.checkRevalidation();
+        Client.checkRevalidation(false);
+
+        // 6. TODO ONLY FOR TESTING
+        Client.checkRevalidation(true);
     }
 }

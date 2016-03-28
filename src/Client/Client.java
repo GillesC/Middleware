@@ -1,5 +1,6 @@
 package Client;
 
+import com.sun.org.apache.xpath.internal.SourceTree;
 import connection.*;
 
 import javax.smartcardio.CommandAPDU;
@@ -97,11 +98,12 @@ public class Client {
             startServer();
 
             SmartCardConnection.setup(c);
-            requestRegistration("Delhaize");
+
+            requestRegistration("Aldi");
 
 
         } finally {
-            c.close(); // close the connection with the card
+            //c.close(); // close the connection with the card
         }
     }
 
@@ -122,12 +124,22 @@ public class Client {
             //byte[] decryptedShopName = decryptOnSC(encryptedShopName);
             byte[] encryptedSerialNumber = SmartCardConnection.getSerialNumber();
 
+
             System.out.println("Sending \"RequestRegistration\" information");
             secureConnection.send("RequestRegistration");
             System.out.println("\t Sending encrypted Serial number");
             secureConnection.send(encryptedSerialNumber);
             System.out.println("\t Sending encrypted shopname");
             secureConnection.send(encryptedShopName);
+
+            boolean existsAlready = (boolean) secureConnection.in();
+            if(existsAlready){
+                System.out.println("Shop already on card, closing connection");
+                secureConnection.close(c);
+                System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
+                return;
+            }
+
             //pseudonym for that particular shop
             System.out.println("\t Receiving encrypted pseudonym");
             byte[] encryptedPseudonym = secureConnection.receiveBytes();
@@ -235,13 +247,23 @@ public class Client {
             throw new Exception("Applet selection failed");
     }
 
-    static void checkRevalidation() throws Exception {
+
+    /*
+    This method will check if there's a need for a revalidation
+    If numOfLogs == 20 send logs to LCP server
+    If this method is calledb by the GUI, send all logs to LCP
+     */
+    static void checkRevalidation(boolean callByGUI) throws Exception {
         System.out.println("-------------- Checking revalidation --------------");
         byte[] numberOfLogsInBytes = SmartCardConnection.getNumberOfLogs();
         // if number is == 20 send to LCP secure
         short numberOfLogs = Util.readShort(numberOfLogsInBytes, 0);
         System.out.println("Number of transactions is "+numberOfLogs);
-        if(numberOfLogs==20) sendLogsToLCP(numberOfLogs);
+        if(callByGUI){
+            if(!(numberOfLogs == 0)) {
+                sendLogsToLCP(numberOfLogs);
+            }
+        } else if(numberOfLogs==20) sendLogsToLCP(numberOfLogs);
         System.out.println("-------------- Ended revalidation --------------");
     }
 
