@@ -1,6 +1,5 @@
 package Client;
 
-import com.sun.org.apache.xpath.internal.SourceTree;
 import connection.*;
 
 import javax.smartcardio.CommandAPDU;
@@ -101,8 +100,6 @@ public class Client {
 
             SmartCardConnection.setup(c);
 
-            requestRegistration("Aldi");
-            requestRegistration("Carrefour");
 
 
         } finally {
@@ -116,8 +113,11 @@ public class Client {
         Util.printBytes(data);
     }*/
 
-    private static void requestRegistration(String shopName) throws Exception {
+    public static void sendPin() throws Exception {
         SmartCardConnection.sendPin(new byte[]{0x01, 0x02, 0x03, 0x04});
+    }
+
+    public static void requestRegistration(String shopName) throws Exception {
         try {
             System.out.println("------------------- setting up SECURE CONNECTION with LCP ---------------------");
             SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
@@ -258,7 +258,7 @@ public class Client {
     If numOfLogs == 20 send logs to LCP server
     If this method is calledb by the GUI, send all logs to LCP
      */
-    static void checkRevalidation(boolean callByGUI) throws Exception {
+    public static int checkRevalidation(boolean callByGUI) throws Exception {
         System.out.println("-------------- Checking revalidation --------------");
         byte[] numberOfLogsInBytes = SmartCardConnection.getNumberOfLogs();
         // if number is == 20 send to LCP secure
@@ -270,6 +270,7 @@ public class Client {
             }
         } else if (numberOfLogs == 20) sendLogsToLCP(numberOfLogs);
         System.out.println("-------------- Ended revalidation --------------");
+        return numberOfLogs;
     }
 
     private static void sendLogsToLCP(int numOfLogs) throws Exception {

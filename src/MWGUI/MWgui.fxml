@@ -1,8 +1,51 @@
-<?import javafx.geometry.Insets?>
-<?import javafx.scene.layout.GridPane?>
+<?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.Button?>
-<?import javafx.scene.control.Label?>
-<GridPane fx:controller="MWGUI.Controller"
-          xmlns:fx="http://javafx.com/fxml" alignment="center" hgap="10" vgap="10">
-</GridPane>
+<?import java.lang.*?>
+<?import java.net.*?>
+<?import java.util.*?>
+<?import javafx.collections.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+
+<TabPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="MWGUI.Controller">
+  <tabs>
+    <Tab text="Register Shop">
+      <content>
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+               <children>
+                  <Label layoutX="55.0" layoutY="145.0" prefHeight="27.0" prefWidth="109.0" text="Shop" />
+                  <ComboBox fx:id="shopCombo" layoutX="281.0" layoutY="139.0" prefHeight="39.0" prefWidth="223.0" promptText="Shops">
+                      <items>
+                          <FXCollections fx:factory="observableArrayList">
+                              <String fx:value="Delhaize" />
+                              <String fx:value="Colruyt" />
+                              <String fx:value="Carrefour" />
+                              <String fx:value="Spar" />
+                              <String fx:value="Aldi" />
+                          </FXCollections>
+                      </items>
+                  </ComboBox>
+                  <Button fx:id="registerButton" layoutX="413.0" layoutY="204.0" mnemonicParsing="false" text="Register" />
+                  <TextField editable="false" layoutX="279.0" layoutY="268.0" promptText="Response status" />
+                  <PasswordField fx:id="pwdField" layoutX="50.0" layoutY="28.0" promptText="PIN" />
+                  <Separator layoutX="44.0" layoutY="103.0" prefHeight="5.0" prefWidth="500.0" />
+                  <Button fx:id="pwdButton" layoutX="453.0" layoutY="28.0" mnemonicParsing="false" text="OK" />
+               </children></AnchorPane>
+      </content>
+    </Tab>
+    <Tab text="Send Logs">
+      <content>
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+               <children>
+                  <Button fx:id="sendLogsButton" layoutX="394.0" layoutY="139.0" mnemonicParsing="false" text="Send Logs" />
+                  <Button fx:id="pwdButtonLogs" layoutX="451.0" layoutY="27.0" mnemonicParsing="false" text="OK" />
+                  <Separator layoutX="50.0" layoutY="104.0" prefHeight="5.0" prefWidth="500.0" />
+                  <PasswordField fx:id="pwdFieldLogs" layoutX="49.0" layoutY="27.0" promptText="PIN" />
+                   <TextArea fx:id="infoArea" layoutX="50.0" layoutY="207.0" prefHeight="112.0" prefWidth="500.0" />
+               </children></AnchorPane>
+      </content>
+    </Tab>
+  </tabs>
+</TabPane>
