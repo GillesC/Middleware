@@ -64,21 +64,35 @@ public class IOThread extends Thread{
     }
 
     private void changeLP() throws Exception {
+        System.out.println("Getting shopname");
         String shopName = (String) in.readObject();
+        System.out.println("Shopname has been read: "+shopName);
         System.out.println("------------------- setting up SECURE CONNECTION with "+shopName+" ---------------------");
         SecureConnection secureConnection = SecureConnection.setupSecureConnection(shopName,c);
 
-        // 0.1 send current LP value for that shop
-        byte[] encryptedLP = SmartCardConnection.getLP(shopName);
 
         // 1. send pesudonym certificate for that shop
+        System.out.println("Getting encrypted certificate");
         byte[] encryptedPseudonymCertificate = SmartCardConnection.getPseudonymCertificateFromCard(shopName);
+
+
+        // 0.1 send current LP value for that shop
+        System.out.println("Getting and sending encryptedLP");
+        byte[] encryptedLP = SmartCardConnection.getLP(shopName);
+        System.out.print("\t Sending (length "+encryptedLP.length+"): "); Util.printBytes(encryptedLP);
+        System.out.println("\t which is equivalent for "+Util.readShort(encryptedLP,0));
+        secureConnection.send(encryptedLP);
+
+        System.out.println("Sending encrypted certificate");
         secureConnection.send(encryptedPseudonymCertificate);
+        System.out.println("Done sending encrypted certificate");
 
         // 2. receive amount for LP to change
+        System.out.println("Receiving encrypted amount");
         byte[] encryptedAmount = secureConnection.receiveBytes();
 
         // 3. change LP on SC
+        System.out.println("Sending encrypted amount back to SC for shop \""+shopName+"\"");
         byte[] encryptedResponse = SmartCardConnection.changeLP(shopName, encryptedAmount);
 
         // 4. send response back to shop
@@ -88,8 +102,5 @@ public class IOThread extends Thread{
         System.out.println("------------------- SECURE CONNECTION with "+shopName+" is closed ---------------------");
         // 5. start possible revalidation procedure
         Client.checkRevalidation(false);
-
-        // 6. TODO ONLY FOR TESTING
-       Client.checkRevalidation(true);
     }
 }

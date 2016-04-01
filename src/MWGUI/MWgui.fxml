@@ -28,7 +28,7 @@
                       </items>
                   </ComboBox>
                   <Button fx:id="registerButton" layoutX="413.0" layoutY="204.0" mnemonicParsing="false" text="Register" />
-                  <TextField editable="false" layoutX="279.0" layoutY="268.0" promptText="Response status" />
+                  <TextField editable="false" layoutX="279.0" layoutY="268.0" promptText="Response status" fx:id="responseStatus"/>
                   <PasswordField fx:id="pwdField" layoutX="50.0" layoutY="28.0" promptText="PIN" />
                   <Separator layoutX="44.0" layoutY="103.0" prefHeight="5.0" prefWidth="500.0" />
                   <Button fx:id="pwdButton" layoutX="453.0" layoutY="28.0" mnemonicParsing="false" text="OK" />

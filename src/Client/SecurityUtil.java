@@ -4,9 +4,9 @@ import connection.SecureConnection;
 import connection.SmartCardConnection;
 import sun.security.ec.ECPublicKeyImpl;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.Socket;
 import java.security.*;
@@ -17,6 +17,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -47,22 +48,26 @@ public class SecurityUtil {
         publicKeyCA = certCA.getPublicKey();
     }
 
-    public static byte[] getECPublicKeyFromCertificate(byte[] lcpecCertificate, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException, UnrecoverableKeyException, KeyStoreException, IOException, IllegalBlockSizeException, ClassNotFoundException, BadPaddingException, InvalidKeySpecException, NoSuchPaddingException {
-        if(!loadedCA) loadCACertificate("LoyaltyCardProvider","LCP","LCP");
-
-        	/* Create cert + get public key */
-        X509Certificate certificateOtherParty = null;
+    public static X509Certificate loadCertificate(byte[] cert){
+        X509Certificate certificate = null;
         try {
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            InputStream byteInputStream = new ByteArrayInputStream(lcpecCertificate);
-            certificateOtherParty = (X509Certificate) certFactory.generateCertificate(byteInputStream);
+            InputStream byteInputStream = new ByteArrayInputStream(cert);
+            certificate = (X509Certificate) certFactory.generateCertificate(byteInputStream);
         } catch (CertificateException e) {
             e.printStackTrace();
         }
+        return certificate;
+    }
 
-        if(!isCertificateValid(certificateOtherParty, subjectName)){
+    public static byte[] getECPublicKeyFromCertificate(byte[] lcpecCertificate, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException, UnrecoverableKeyException, KeyStoreException, IOException, IllegalBlockSizeException, ClassNotFoundException, BadPaddingException, InvalidKeySpecException, NoSuchPaddingException, InvalidAlgorithmParameterException {
+        if(!loadedCA) loadCACertificate("LoyaltyCardProvider","LCP","LCP");
+
+        	/* Create cert + get public key */
+        X509Certificate certificateOtherParty = loadCertificate(lcpecCertificate);
+
+        if(!isCertificateValid(certificateOtherParty, subjectName) || isCertRevoked(certificateOtherParty)){
             System.err.println("Certificate isn't valid!");
-            //TODO cleaner way
             System.exit(-1);
         }
 
@@ -76,22 +81,26 @@ public class SecurityUtil {
 
     private static boolean isCertificateValid(X509Certificate cert, String subjectName) throws CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchPaddingException, InvalidKeySpecException, IOException, BadPaddingException, IllegalBlockSizeException, ClassNotFoundException {
         if (cert != null) {
+            // whitelist the LCP server
+            if(SecureConnection.checkName(cert, SecureConnection.LCP_NAME)) return true;
             cert.checkValidity(new Date());
             cert.verify(publicKeyCA);
             if (!SecureConnection.checkName(cert, subjectName)) {
                 System.err.println("SubjectName doesn't match contacted name...");
+                return false;
             }
+            return true;
         } else {
             System.err.println("ECCertificate is null...");
+            return false;
         }
 
-        return !isCertRevoked(cert);
     }
 
-    private static boolean isCertRevoked(X509Certificate cert) throws IOException, ClassNotFoundException, NoSuchPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchProviderException, InvalidKeyException, InvalidKeySpecException, CertificateEncodingException {
-        System.out.println("Starting unsecure connection with: OCSP server on port: 26262");
+    private static boolean isCertRevoked(X509Certificate cert) throws IOException, ClassNotFoundException, NoSuchPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchProviderException, InvalidKeyException, InvalidKeySpecException, CertificateEncodingException, InvalidAlgorithmParameterException {
+        System.out.println("------------ Starting unsecure connection with: OCSP server on port: 26262 -----------");
         int portNumber= 26262;
-        String hostName = "OCSP";
+        String hostName = "localhost";
         Socket socket = new Socket(hostName, portNumber);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
@@ -99,13 +108,39 @@ public class SecurityUtil {
         System.out.println("Writing to OCSP server");
         out.writeObject("isCertificateRevoked");
         out.writeObject("Middleware");
+        System.out.println("Sending certificate of length: "+cert.getEncoded().length);
         out.writeObject(cert.getEncoded());
-        byte isRevoked = SmartCardConnection.decryptWithPrivateKey((byte[]) in.readObject())[0];
-        if(isRevoked==0x00){
-            System.err.println("Certificate is revoked!");
+        byte[] encryptedSessionKey = (byte[]) in.readObject();
+        byte[] sessionKey = SmartCardConnection.decryptWithPrivateKey(encryptedSessionKey);
+
+        SecretKey key = new SecretKeySpec(sessionKey, 0, sessionKey.length, "AES");
+
+        byte[] ivdata = new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        IvParameterSpec spec = new IvParameterSpec(ivdata);
+
+        Cipher cipherAes = Cipher.getInstance("AES/CBC/PKCS7Padding");
+
+        cipherAes.init(Cipher.DECRYPT_MODE, key, spec);
+
+        byte[] encryptedECCertificate = (byte[]) in.readObject();
+        byte[] certReceived = cipherAes.doFinal(encryptedECCertificate);
+
+        if(Arrays.equals(certReceived, cert.getEncoded())){
+
+
+            byte isRevoked = cipherAes.doFinal((byte[]) in.readObject())[0];
+            if(isRevoked==0x00){
+                System.err.println("Certificate is revoked!");
+                System.out.println("------------ [REVOKED] Ending unsecure connection with: OCSP server on port: 26262 -----------");
+                return true;
+            }else{
+                System.out.println("------------ [NOT REVOKED] Ending unsecure connection with: OCSP server on port: 26262 -----------");
+                return false;
+            }
+        }else{
+            System.out.println("------------ [NOT REVOKED] Ending unsecure connection with: OCSP server on port: 26262 -----------");
             return true;
         }
-        return false;
     }
 
     public static PublicKey getPublicRSAKeyFromBytes(byte[] pub) throws NoSuchAlgorithmException, InvalidKeySpecException {

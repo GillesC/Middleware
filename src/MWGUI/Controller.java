@@ -25,6 +25,7 @@ public class Controller implements Initializable {
     public PasswordField pwdFieldLogs;
     public Button pwdButtonLogs;
     public TextArea infoArea;
+    public TextField responseStatus;
     @FXML
     private ComboBox<String> shopCombo;
     @FXML
@@ -117,7 +118,10 @@ public class Controller implements Initializable {
             if (selectedShop != null) {
                 Platform.runLater(() -> {
                     try {
-                        requestRegistration(selectedShop);
+                        boolean success = requestRegistration(selectedShop);
+                        if(success){
+                            responseStatus.setText("Registration of \""+selectedShop+"\" was succesful.\n");
+                        }
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

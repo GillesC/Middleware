@@ -117,7 +117,7 @@ public class Client {
         SmartCardConnection.sendPin(new byte[]{0x01, 0x02, 0x03, 0x04});
     }
 
-    public static void requestRegistration(String shopName) throws Exception {
+    public static boolean requestRegistration(String shopName) throws Exception {
         try {
             System.out.println("------------------- setting up SECURE CONNECTION with LCP ---------------------");
             SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
@@ -140,7 +140,7 @@ public class Client {
                 System.err.println("Shop already on card, closing connection");
                 secureConnection.close(c);
                 System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
-                return;
+                return existsAlready;
             }
 
             //pseudonym for that particular shop
@@ -155,10 +155,12 @@ public class Client {
             // close connection == sessionkey = null on SC
             secureConnection.close(c);
             System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
+            return true;
         } catch (CertificateException certE) {
             System.err.println("CertificateException: " + certE.getMessage());
         }
 
+        return false;
     }
 
 /*    private static byte[] decryptOnSC(byte[] encryptedData) throws Exception {
@@ -307,6 +309,11 @@ public class Client {
         }).start();
 
     }
+
+    public static void closeSmartCardConnection() throws Exception {
+        c.close();
+    }
+
 
     //			/* generate random 20 bytes as challenge */
 //			SecureRandom random = SecureRandom.getInstance("SHA1PRNG");

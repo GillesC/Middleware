@@ -268,7 +268,7 @@ public class SmartCardConnection {
     private static byte[] sendDataAndReceive(byte CMD, byte p1, byte p2, byte[] data, boolean encryptedMW) throws Exception {
         //byte[] dataToSend = encryptWithPublicKeySC(data);
         byte[] dataToSend = data;
-        System.out.println("Send data: "); Util.printBytes(data);
+       // System.out.println("Send data: "); Util.printBytes(data);
 
         CommandAPDU a;
         ResponseAPDU r;
@@ -278,7 +278,7 @@ public class SmartCardConnection {
         if (r.getSW() != 0x9000)
             throw new Exception(CMD+" failed " + r);
 
-        System.out.println("Received data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
+        //System.out.println("Received data (length "+r.getData().length+"): "); Util.printBytes(r.getData());
         if(encryptedMW) return decryptWithPrivateKey(r.getData());
         else return r.getData();
     }
@@ -323,14 +323,15 @@ public class SmartCardConnection {
             return cachePseudonym.get(shopName);
         }
         */
+        System.out.println("\t Getting Pseudonym certificate from card");
         byte[] shopNameInBytes = shopName.getBytes(StandardCharsets.UTF_8);
-        System.out.println("\t Sending Part 1");
+        System.out.println("\t Getting Part 1");
         byte[] encryptedCertificatePart1 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART1,shopNameInBytes , false);
         if(encryptedCertificatePart1.length!=200) System.err.println("Wrong certificate size!");
-        System.out.println("\t Sending Part 2");
+        System.out.println("\t Getting Part 2");
         byte[] encryptedCertificatePart2 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART2,shopNameInBytes , false);
         if(encryptedCertificatePart2.length!=200) System.err.println("Wrong certificate size!");
-        System.out.println("\t Sending Part 3");
+        System.out.println("\t Getting Part 3");
         byte[] encryptedCertificatePart3 = sendDataWithChallengeAndReceive(GET_PSEUDONYM_CERTIFICATE_PART3,shopNameInBytes , false);
         if(encryptedCertificatePart3.length!=112) System.err.println("Wrong certificate size!");
 
@@ -342,6 +343,7 @@ public class SmartCardConnection {
 
         byte[] pseudoCert = outputStream.toByteArray();
         cachePseudonym.put(shopName, pseudoCert);
+        System.out.println("\t Done.");
         return pseudoCert;
     }
 
@@ -361,6 +363,7 @@ public class SmartCardConnection {
     }
 
     public static byte[] fetchNextLog() throws Exception {
+        fetchNextChallenge();
         return sendInsWithChallengeAndReceiveSessionData(GET_NEXT_LOG);
     }
 
