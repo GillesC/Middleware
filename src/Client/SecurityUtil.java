@@ -2,6 +2,7 @@ package Client;
 
 import connection.SecureConnection;
 import connection.SmartCardConnection;
+import javafx.application.Platform;
 import sun.security.ec.ECPublicKeyImpl;
 
 import javax.crypto.*;
@@ -48,7 +49,7 @@ public class SecurityUtil {
         publicKeyCA = certCA.getPublicKey();
     }
 
-    public static X509Certificate loadCertificate(byte[] cert){
+    private static X509Certificate loadCertificate(byte[] cert){
         X509Certificate certificate = null;
         try {
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -67,8 +68,9 @@ public class SecurityUtil {
         X509Certificate certificateOtherParty = loadCertificate(lcpecCertificate);
 
         if(!isCertificateValid(certificateOtherParty, subjectName) || isCertRevoked(certificateOtherParty)){
+            Platform.runLater(() -> MWGUI.Main.controller.showErrorDialog("Connection isn't secure","The certificate from "+subjectName+" isn't valid. Closing connection..."));
             System.err.println("Certificate isn't valid!");
-            System.exit(-1);
+            return null;
         }
 
         PublicKey publicKeyOtherParty = certificateOtherParty.getPublicKey();

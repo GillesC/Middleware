@@ -5,19 +5,21 @@ import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Control;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import static Client.Client.closeSmartCardConnection;
 
 public class Main extends Application {
+    public static Controller controller;
 
     @Override
     public void start(Stage primaryStage) throws Exception{
         FXMLLoader loader = new FXMLLoader(getClass().getResource("MWgui.fxml"));
         Parent root = loader.load();
 
-        Controller controller = loader.getController();
+        this.controller = loader.getController();
 
         primaryStage.getIcons().add(new Image("file:icon.png"));
         primaryStage.setTitle("Middleware");

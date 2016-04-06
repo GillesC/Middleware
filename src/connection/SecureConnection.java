@@ -126,6 +126,8 @@ public class SecureConnection {
     }
 
     public static SecureConnection setupSecureConnection(String with, IConnection c) throws Exception {
+        long start = System.currentTimeMillis();
+        System.out.println("Setting up secure connection at "+start);
         SecureConnection secureConnection = new SecureConnection(c);
         secureConnection.with("localhost", with);
 
@@ -133,22 +135,31 @@ public class SecureConnection {
 
         /* Sending Card EC certificate */
         System.out.println("\nGetting publicECKey from JavaCard");
+        long startECCertFromCard = System.currentTimeMillis();
         if(cardECCertificate==null) cardECCertificate = SmartCardConnection.getECCertificateFromCard();
         else{
             System.out.println("publicECKey is cached, getting it...");
         }
-        System.out.println("\t Sending EC certificate...");
+        System.out.println("\t Sending EC certificate..., interval from pull was: "+(System.currentTimeMillis()-startECCertFromCard));
         Util.printBytes(cardECCertificate);
 
         secureConnection.send(cardECCertificate);
         System.out.println("\t Done sending");
 
         if(with.equals("LCP")) with = SecureConnection.LCP_NAME;
+        long startcheck = System.currentTimeMillis();
         byte[] ecPublicKeyOtherPartyBytes = SecurityUtil.getECPublicKeyFromCertificate(ECCertificateOtherParty, with);
+        if(ecPublicKeyOtherPartyBytes==null){
+            return null;
+        }
+        System.out.println("Contatcing OCSP + checking, interval: "+(System.currentTimeMillis()-startcheck));
         System.out.println("\t Sending ecPublicKeyOtherPartyBytes to SC");
-        SmartCardConnection.generateSessionKey(ecPublicKeyOtherPartyBytes);
 
-        System.out.println("\nSecure Connection has been setup");
+        long startGen = System.currentTimeMillis();
+        SmartCardConnection.generateSessionKey(ecPublicKeyOtherPartyBytes);
+        System.out.println("GENERATING SESSION KEY COMPLETE: "+(System.currentTimeMillis()-startGen));
+
+        System.out.println("\nSecure Connection has been setup, total interval time: "+(System.currentTimeMillis()- start));
         return secureConnection;
     }
 

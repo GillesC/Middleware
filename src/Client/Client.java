@@ -67,6 +67,7 @@ public class Client {
 
 
     private static final boolean isSimulation = false;
+    private static final short MAX_NUM_OF_LOGS = 6;
 
     public static IConnection c;
 
@@ -121,6 +122,12 @@ public class Client {
         try {
             System.out.println("------------------- setting up SECURE CONNECTION with LCP ---------------------");
             SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
+
+            if(secureConnection==null){
+
+                System.out.println("------------------- SECURE CONNECTION with LCP is closed ---------------------");
+                return false;
+            }
 
 
             byte[] encryptedShopName = SmartCardConnection.encrypt(shopName);
@@ -270,7 +277,7 @@ public class Client {
             if (!(numberOfLogs == 0)) {
                 sendLogsToLCP(numberOfLogs);
             }
-        } else if (numberOfLogs == 20) sendLogsToLCP(numberOfLogs);
+        } else if (numberOfLogs == MAX_NUM_OF_LOGS) sendLogsToLCP(numberOfLogs);
         System.out.println("-------------- Ended revalidation --------------");
         return numberOfLogs;
     }
@@ -280,6 +287,9 @@ public class Client {
             try {
                 System.out.println("-------------- Sending logs to LCP server --------------");
                 SecureConnection secureConnection = SecureConnection.setupSecureConnection("LCP", c);
+                if(secureConnection==null){
+                    return;
+                }
                 // 1. send commando "PushLogs"
                 secureConnection.send("PushLogs");
                 // 2. Ask all logs

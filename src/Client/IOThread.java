@@ -70,6 +70,7 @@ public class IOThread extends Thread{
         System.out.println("------------------- setting up SECURE CONNECTION with "+shopName+" ---------------------");
         SecureConnection secureConnection = SecureConnection.setupSecureConnection(shopName,c);
 
+        if(secureConnection==null) return;
 
         // 1. send pesudonym certificate for that shop
         System.out.println("Getting encrypted certificate");

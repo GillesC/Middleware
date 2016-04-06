@@ -120,7 +120,9 @@ public class Controller implements Initializable {
                     try {
                         boolean success = requestRegistration(selectedShop);
                         if(success){
-                            responseStatus.setText("Registration of \""+selectedShop+"\" was succesful.\n");
+                            responseStatus.setText("Registration of \""+selectedShop+"\" was successful.\n");
+                        }else{
+                            responseStatus.setText("No success.\n");
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -132,6 +134,15 @@ public class Controller implements Initializable {
         }
 
         );
+    }
+
+    public void showErrorDialog(String title, String message){
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+
+        alert.showAndWait();
     }
 
 }
